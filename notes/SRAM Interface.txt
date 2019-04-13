@@ -1,0 +1,39 @@
+	 SRAM Interface
+	----------------
+
+	GND  1 | 35 GND
+	D3   2 | 36 !CD1
+	D4   3 | 37 D11
+	D5   4 | 38 D12
+	D6   5 | 39 D13
+	D7   6 | 40 D14
+	!CE1 7 | 41 D15
+	A10  8 | 42 !CE2
+	!OE  9 | 43 NC
+	A11 10 | 44 NC
+	A9  11 | 45 NC
+	A8  12 | 46 A17
+	A13 13 | 47 A18
+	A14 14 | 48 A19
+	!WE 15 | 49 A20
+	NC  16 | 50 A21
+	Vcc 17 | 51 Vcc
+	NC  18 | 52 NC
+	A16 19 | 53 NC
+	A15 20 | 54 NC
+	A12 21 | 55 NC
+	A7  22 | 56 NC
+	A6  23 | 57 NC
+	A5  24 | 58 NC
+	A4  25 | 59 NC
+	A3  26 | 60 NC
+	A2  27 | 61 !REG
+	A1  28 | 62 BVD2
+	A0  29 | 63 BVD1
+	D0  30 | 64 D8
+	D1  31 | 65 D9
+	D2  32 | 66 D10
+	WP  33 | 67 !CD2
+	GND 34 | 68 GND
+
+Port5.3 - Card detect

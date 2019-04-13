@@ -1,0 +1,73 @@
+	U34 (80C562)
+
+Crystal: 7.3728 MHz
+
+1 - 
+2 - Vdd
+3 - STARTADC - J2 (2) -> Keyboard (Blank key)
+4 - 
+5 - PWM1 - Piezo Buzzer
+6 - EW - Vdd - Watchdog timer disabled
+7 - 
+8 - 
+9 - 
+10 - 
+11 - 
+12 - 
+13 - 
+14 - 
+15 - RST
+16 - 
+17 - 
+18 - 
+19 - 
+20 - P1.4 - U36 #10 (CET) -> LCD Enable
+21 - P1.5 - U13 i2c expander interrupt
+22 - P1.6 - SCL - U3|U4 RTC / U13 Bus expander (keyboard?)
+23 - P1.7 - SDA - 		"
+24 - 
+25 - 
+26 - 
+27 - 
+28 - 
+29 - 
+30 - 
+31 - 
+32 - N/C
+33 - N/C
+34 - XTAL2
+35 - XTAL1
+36 - Vss GND
+37 - Vss GND
+38 - N/C
+39 - 
+40 - 
+41 - 
+42 - 
+43 - P2.4 - LCD CSB
+44 - P2.5 - LCD CSA
+45 - P2.6 - LCD D/I
+46 - 
+47 - 
+48 - 
+49 - 
+50 - P0.7 - LCD DB7
+51 - P0.6 - LCD DB6
+52 - P0.5 - LCD DB5 / U19 (Keyboard matrix)
+53 - P0.4 - LCD DB4 / U19 (Keyboard matrix)
+54 - P0.3 - LCD DB3 / U19 (Keyboard matrix)
+55 - P0.2 - LCD DB2 / U19 (Keyboard matrix)
+56 - P0.1 - LCD DB1 / U19 (Keyboard matrix)
+57 - P0.0 - LCD DB0 / U19 (Keyboard matrix)
+58 - 
+59 - 
+60 - Vss GND
+61 - Vdd
+62 - 
+63 - 
+64 - 
+65 - 
+66 - 
+67 - 
+68 - 
+

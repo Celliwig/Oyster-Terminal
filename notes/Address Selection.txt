@@ -1,0 +1,222 @@
+  Address Selection
+---------------------
+
+ U22 - 74HC373 (Octal D-type transparent latch; 3-state)
+---------------------------------------------------------
+
+ 1 - !OE - Gnd					20 - Vcc
+ 2 - Q0  - U23 (6)				19 - Q7 - U26 (3)
+ 3 - D0  - U34 (57 P0.0)			18 - D7 - U34 (50 P0.7)
+ 4 - D1  - U34 (56 P0.1)			17 - D6 - U34 (51 P0.6)
+ 5 - Q1  - U23 (10)				16 - Q6 - U30 (13)
+ 6 - Q2  - U23 (13)				15 - Q5 - U30 (10)
+ 7 - D2  - U34 (55 P0.2)			14 - D5 - U34 (52 P0.5)
+ 8 - D3  - U34 (54 P0.3)			13 - D4 - U34 (53 P0.4)
+ 9 - Q3  - U30 (3)				12 - Q4 - U30 (6)
+10 - GND					11 - LE - U37 (4)
+
+
+ U23 74HC157 (Quad 2-input multiplexer)
+----------------------------------------
+
+ 1 - S - U31 (12)				16 - Vcc
+ 2 - 1i0 - U34 (16 P1.0)			15 - !E - U37 (6)
+ 3 - 1i1 - U37 (10)				14 - 4i0 - U25 (6)
+ 4 - 1Y - U27 (2)				13 - 4i1 - U22 (6)
+ 5 - 2i0 - U25 (2)				12 - 4Y - ROM alt A16
+ 6 - 2i1 - U22 (2)				11 - 3i0 - U25 (5)
+ 7 - 2Y - ROM/RAM A15				10 - 3i1 - U22 (5)
+ 8 - Gnd					 9 - 3Y - ROM/RAM A16
+
+
+ U25 - 74HC373 (Octal D-type transparent latch; 3-state)
+---------------------------------------------------------
+
+ 1 - !OE - Gnd					20 - Vcc
+ 2 - Q0  - U23 (5)				19 - Q7 - U26 (2)
+ 3 - D0  - U34 (57 P0.0)			18 - D7 - U34 (50 P0.7)
+ 4 - D1  - U34 (56 P0.1)			17 - D6 - U34 (51 P0.6)
+ 5 - Q1  - U23 (11)				16 - Q6 - U30 (14)
+ 6 - Q2  - U23 (14)				15 - Q5 - U30 (11)
+ 7 - D2  - U34 (55 P0.2)			14 - D5 - U34 (52 P0.5)
+ 8 - D3  - U34 (54 P0.3)			13 - D4 - U34 (53 P0.4)
+ 9 - Q3  - U30 (2)				12 - Q4 - U30 (5)
+10 - GND					11 - LE - U37 (12)
+
+
+ U26 74HC157 (Quad 2-input multiplexer)
+----------------------------------------
+
+ 1 - S - U31 (12)				16 - Vcc
+ 2 - 1i0 - U25 (19)				15 - !E - U37 (6)
+ 3 - 1i1 - U22 (19)				14 - 4i0 - U34 (17 P1.1)
+ 4 - 1Y	- U19 (SRAM card ???)			13 - 4i1 - U34 (19 P1.3)
+ 5 - 2i0 - U34 (47 !PSEN)			12 - 4Y - U27 (13)
+ 6 - 2i1 - U34 (31 !RD)				11 - 3i0 - Gnd
+ 7 - 2Y - U19 (SRAM card !OE)			10 - 3i1 - Gnd
+ 8 - Gnd					 9 - 3Y - N/C ???
+
+
+ U27 74HC32 (Quad 2 input OR)
+------------------------------
+ 1 - 1A - U33 (10)				14 - Vcc
+ 2 - 1B - U23 (4)				13 - 4B - U26 (12)
+ 3 - 1Y - U28 (1)				12 - 4A - U33 (10)
+ 4 - 2A - U34 (30 !WR)				11 - 4Y - U31 (4)
+ 5 - 2B - U37 (8)				10 - 3B - @SELF (6 2Y)
+ 6 - 2Y - @SELF (10 3B)				 9 - 3A - U34 (46 A15)
+ 7 - Gnd					 8 - 3Y - U38 (1)
+
+ U28 74HC157 (Quad 2-input multiplexer)
+----------------------------------------
+
+ 1 - S - U27 (3)				16 - Vcc
+ 2 - 1i0 - U31 (8)				15 - !E - Gnd
+ 3 - 1i1 - U31 (8)				14 - 4i0 - U34 (47 !PSEN)
+ 4 - 1Y	 - @SELF (6 2i1 / 11 3i0)		13 - 4i1 - U34 (31 !RD)
+ 5 - 2i0 - U34 (47 !PSEN)			12 - 4Y - U35 (24 ROM !OE)
+ 6 - 2i1 - @SELF (4 1Y)				11 - 3i0 - @SELF (4 1Y)
+ 7 - 2Y - U35 (22 ROM !CE)			10 - 3i1 - U34 (47 !PSEN)
+ 8 - Gnd					 9 - 3Y - U33 (2)
+
+
+ U29 - 74HC373 (Octal D-type transparent latch; 3-state)
+---------------------------------------------------------
+ NB. ROM addresses connected in parallel to U25 RAM
+
+ 1 - !OE - Gnd					20 - Vcc
+ 2 - Q0  - U35 (12)				19 - Q7 - U35 (5)
+ 3 - D0  - U34 (57 P0.0)			18 - D7 - U34 (50 P0.7)
+ 4 - D1  - U34 (56 P0.1)			17 - D6 - U34 (51 P0.6)
+ 5 - Q1  - U35 (11)				16 - Q6 - U35 (6)
+ 6 - Q2  - U35 (10)				15 - Q5 - U35 (7)
+ 7 - D2  - U34 (55 P0.2)			14 - D5 - U34 (52 P0.5)
+ 8 - D3  - U34 (54 P0.3)			13 - D4 - U34 (53 P0.4)
+ 9 - Q3  - U35 (9)				12 - Q4 - U35 (8)
+10 - GND					11 - LE - U34 (48 ALE)
+
+
+ U30 74HC157 (Quad 2-input multiplexer)
+----------------------------------------
+
+ 1 - S - U31 (12)				16 - Vcc
+ 2 - 1i0 - U25 (9)				15 - !E - U37 (6)
+ 3 - 1i1 - U22 (9)				14 - 4i0 - U25 (16)
+ 4 - 1Y	- U19 (SRAM card A18???)		13 - 4i1 - U22 (16)
+ 5 - 2i0 - U25 (12)				12 - 4Y - U19 (SRAM card A21???)
+ 6 - 2i1 - U22 (12)				11 - 3i0 - U25 (15)
+ 7 - 2Y - U19 (SRAM card A19???)		10 - 3i1 - U22 (15)
+ 8 - Gnd					 9 - 3Y - U19 (SRAM card A20???)
+
+
+ U31 74HC10 (Triple 3-input NAND gate)
+-----------------------------------------
+
+ 1 - 1A - U34 (30 !WR)				14 - Vcc
+ 2 - 1B - U34 (31 !RD)				13 - 1C - Vcc
+ 3 - 2A - U33 (1)				12 - 1Y - @SELF (11) & U23 (1) & U26 (1) & U30 (1) & U33 (8) & U38 (14) 
+ 4 - 2B - U27 (11)				11 - 3C - @SELF (12)
+ 5 - 2C - U39 (6 - Reset)			10 - 3B - U37 (8)
+ 6 - 2Y - U19 (SRAM card !CE1)			 9 - 3A - U37 (8)
+ 7 - Gnd					 8 - 3Y - U28 (2/3)
+
+
+ U32 74HC10 (Triple 3-input NAND gate)
+-----------------------------------------
+
+ 1 - 1A	- Vcc					14 - Vcc
+ 2 - 1B	- Vcc					13 - 1C - U27 (11)
+ 3 - 2A	- U33 (1)				12 - 1Y - @SELF (4 2B)
+ 4 - 2B	- @SELF (12 1Y)				11 - 3C - Gnd
+ 5 - 2C	- U39 (6 - Reset)			10 - 3B - Gnd
+ 6 - 2Y	- U24 (22 !CE1 / 24 !OE)		 9 - 3A - Gnd
+ 7 - Gnd					 8 - 3Y - N/C ???
+
+
+ U33 74HC02 (Quad 2-Input NOR Gate)
+------------------------------------
+
+ 1 - 1Y - U31 (3) & U32 (3)			14 - Vcc
+ 2 - 1A	- U28 (9)				13 - 4Y - U37 (1)
+ 3 - 1B	- U34 (48 ALE)				12 - 4B - U37 (8)
+ 4 - 2Y	- U34 (66 P5.3)				11 - 4A - U34 (34 XTAL)
+ 5 - 2A	- U34 (3 STADC) & J2 (2)		10 - 3Y - U27 (12)
+ 6 - 2B	- U34 (3 STADC) & J2 (2)		 9 - 3B - U38 (12)
+ 7 - Gnd					 8 - 3A - U31 (12)
+
+
+ U36 74HC163 (Presettable synchronous 4-bit binary counter - Clock Generation )
+------------------------------------------------------------------------------
+
+ 1 - !MR -					16 - Vcc
+ 2 - CP -					15 - TC - 
+ 3 - D0 -					14 - Q0 - 
+ 4 - D1 -					13 - Q1 - 
+ 5 - D2 -					12 - Q2 - J3 (8 LCD Enable)
+ 6 - D3 -					11 - Q3 - 
+ 7 - CEP -					10 - CET - U34 (20 P1.4)
+ 8 - Gnd					 9 - !PE - 
+
+
+ U37 74HC14 (Hex inverting Schmitt trigger)
+--------------------------------------------
+
+ 1 - 1A	- U33 (13)				14 - Vcc
+ 2 - 1Y	- LK8 (open)				13 - 6A - U38 (6) 
+ 3 - 2A	- U38 (7)				12 - 6Y - U25 (11)
+ 4 - 2Y	- U22 (11)				11 - 5A - U34 (18 P1.2)
+ 5 - 3A	- U34 (46 A15)				10 - 5Y - U23 (3)
+ 6 - 3Y - U23 (15) & U26 (15) & U30 (15)	 9 - 4A - U34 (20 P1.4)
+ 7 - Gnd					 8 - 4Y - U27 (5) & U31 (9/10) & U33 (12)
+
+
+ U38 74HC139 (Dual 2->4 line decoder)
+--------------------------------------
+
+ 1 - 1!E - U27 (8)				16 - Vcc
+ 2 - 1A0 - U34 (41 A10)				15 - 2!E - U34 (46 A15)
+ 3 - 1A1 - U34 (42 A11)				14 - 2A0 - U31 (12)
+ 4 - 1!Y0 - U11 (9)				13 - 2A1 - P1 (8)
+ 5 - 1!Y1 - U19 (9 keyboard matrix select)	12 - 2!Y0 - U33 (9)
+ 6 - 1!Y2 - U37 (13)				11 - 2!Y1 - 
+ 7 - 1!Y3 - U37 (3)				10 - 2!Y2 - 
+ 8 - Gnd					 9 - 2!Y3 - 
+
+
+ U39 1252-1T (Threshold detector and reset generator)
+------------------------------------------------------
+ 1 - CT					8 - Vdd
+ 2 - Select ()				7 - !PowF
+ 3 - COMin				6 - Reset
+ 4 - Gnd				5 - COMout
+
+
+
+ U11 74HC174 ()
+
+
+ Memory Addresses
+------------------
+
+Writing to address with P1.4 set
+0x00xx - Lcd Properties (0bxxxxcccc - c=contrast)
+0x04xx - Keyboard Column Select (U19 74HC174)
+
+0x08xx/0x0cxx:
+	D0 - RAM/ROM A15
+	D1 - RAM/ROM A16
+	D2 - ROM A16 Alt
+	D3 - SRAM card A18
+	D4 - SRAM card A19
+	D5 - SRAM card A20
+	D6 - SRAM card A21
+	D7 - SRAM card ???
+
+P1.0/!P1.2 - RAM CE
+P1.1/P1.3 - SRAM card CE
+
+ I2C Address Selection
+-----------------------
+
+0xa0 = U3 pcf8583 RTC
+0xa2 = U4 pcf8583 RTC

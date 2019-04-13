@@ -1,0 +1,20 @@
+	J5 (Bottom connector)
+
+
+   *---*---*---*---*---*
+   |   |   |   |   |   |	(Viewed from back of PCB)
+   |   |   |   |   |   |
+
+   1   2   3   4   5   6
+
+
+1) (N/A) - GND 
+2) (In)  - U40 pin 5
+3) (Out) - R67 (400 ohms) -> U41 pin 12 -> U41 pin 13 -> U34 pin 28
+4) (Out) - R68 (400 ohms) -> U41 pin 2 -> U41 pin 1
+5) (In)  - U41 pin 5 -> U41 pin 6
+6) (N/A) - Power (+15V)
+
+U40 = 74HC11T
+U41 = 74HC14T
+U34 = 80C562
