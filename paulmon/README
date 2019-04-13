@@ -18,3 +18,14 @@ In addition, PAULMON supports the easy inclusion of additional commands. Several
 
  * Memory page selection tool
  * I2C tool (bus scan/register read/write)
+
+## Assembler
+
+PAULMON and, by extension, OysterLib, have been developed to be compiled with 'as31'. Packages are available for
+Ubuntu.
+
+While the hex (Intel format) output from as31 can be downloaded directly to the device (while it's running PAULMON),
+and ROM programming software can generally load multiple files, it can be useful to be able to concatenate multiple 
+files together. This can be acheived using 'srec_cat' (available in the 'srecord' package). It's argument format is:
+
+srec_cat example1.hex -intel example2.hex -intel -output example12.hex -intel
