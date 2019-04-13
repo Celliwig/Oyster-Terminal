@@ -2,7 +2,7 @@
 
 This is a basic monitor system, which allows the uploading of code to the device. See:
 
-[PAULMON](https://www.pjrc.com/tech/8051/paulmon2.html)
+https://www.pjrc.com/tech/8051/paulmon2.html
 
 This has been augmented with a library (OysterLib) of hardware related functions which can control:
 
