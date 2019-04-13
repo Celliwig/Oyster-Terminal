@@ -11,7 +11,7 @@
 
 ; http://www.pjrc.com/tech/8051/pm2_docs/index.html
 
-.equ	locat, 0x1000		;location for these commands (usually 1000)
+.equ	locat, 0x2000		;location for these commands (usually 1000)
 .equ	paulmon2, 0x0000	;location where paulmon2 is at (usually 0000)
 
 .equ    phex1, 0x2E+paulmon2

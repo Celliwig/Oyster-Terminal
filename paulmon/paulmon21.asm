@@ -42,6 +42,18 @@
 
 ;---------------------------------------------------------;
 ;							  ;
+;	                OsyterLib			  ;
+;							  ;
+;---------------------------------------------------------;
+.equ	oysterlib_locat, 0x1000
+;.equ	oysterlib_locat, 0x9000
+.equ	oysterlib_cout, 0x00+oysterlib_locat
+.equ	oysterlib_newline, 0x02+oysterlib_locat
+.equ	oysterlib_cin, 0x04+oysterlib_locat
+.flag   use_oysterlib, 0x2f.0
+
+;---------------------------------------------------------;
+;							  ;
 ;	    PAULMON2's default configuration		  ;
 ;							  ;
 ;---------------------------------------------------------;
@@ -201,7 +213,8 @@
 
 .equ	psw_init, 0		;value for psw (which reg bank to use)
 .equ	dnld_parm, 0x10		;block of 16 bytes for download
-.equ	stack, 0x30		;location of the stack
+;.equ	stack, 0x30		;location of the stack
+.equ	stack, 0x80		;location of the stack
 .equ	baud_save, 0x78		;save baud for warm boot, 4 bytes
 
 ;---------------------------------------------------------;
@@ -300,17 +313,20 @@ cin_filter_h:
 ;---------------------------------------------------------;
 
 
-cin:	jnb	ri, cin
-	clr	ri
-	mov	a, sbuf
-	ret
+cin:
+	ljmp	oysterlib_cin
+;	jnb	ri, cin
+;	clr	ri
+;	mov	a, sbuf
+;	ret
 
 dspace: acall	space
 space:	mov	a, #' '
-cout:	jnb	ti, cout
-	clr	ti		;clr ti before the mov to sbuf!
-	mov	sbuf, a
-	ret
+cout:	ljmp	oysterlib_cout
+;	jnb	ti, cout
+;	clr	ti		;clr ti before the mov to sbuf!
+;	mov	sbuf, a
+;	ret
 
 ;clearing ti before reading sbuf takes care of the case where
 ;interrupts may be enabled... if an interrupt were to happen
@@ -322,13 +338,15 @@ cout:	jnb	ti, cout
 
 newline2:			;print two newlines
 	acall	newline
-newline:push	acc		;print one newline
-	mov	a, #13
-	acall	cout
-	mov	a, #10
-	acall	cout
-	pop	acc
-	ret
+newline:
+	ljmp	oysterlib_newline
+;	push	acc		;print one newline
+;	mov	a, #13
+;	acall	cout
+;	mov	a, #10
+;	acall	cout
+;	pop	acc
+;	ret
 
 	;get 2 digit hex number from serial port
 	; c = set if ESC pressed, clear otherwise
@@ -1829,6 +1847,7 @@ poweron:
 	mov	p1, a
 	mov	p2, a
 	mov	p3, a
+	clr	use_oysterlib	; Make sure this is clear, so it will be set by oyster_lib
 	mov	sp, #stack
 
 ;Before we start doing any I/O, a short delay is required so
