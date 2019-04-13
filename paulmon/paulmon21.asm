@@ -42,18 +42,6 @@
 
 ;---------------------------------------------------------;
 ;							  ;
-;	                OsyterLib			  ;
-;							  ;
-;---------------------------------------------------------;
-.equ	oysterlib_locat, 0x1000
-;.equ	oysterlib_locat, 0x9000
-.equ	oysterlib_cout, 0x00+oysterlib_locat
-.equ	oysterlib_newline, 0x02+oysterlib_locat
-.equ	oysterlib_cin, 0x04+oysterlib_locat
-.flag   use_oysterlib, 0x2f.0
-
-;---------------------------------------------------------;
-;							  ;
 ;	    PAULMON2's default configuration		  ;
 ;							  ;
 ;---------------------------------------------------------;
@@ -71,8 +59,11 @@
 ; These two parameters control where PAULMON2 will be assembled,
 ; and where it will attempt to LJMP at the interrupt vector locations.
 
-.equ	base, 0x0000		;location for PAULMON2
-.equ	vector, 0x4000		;location to LJMP interrupt vectors
+; ROM
+.equ	base, 0x0000				; location for PAULMON2
+; RAM
+;.equ	base, 0x8000				; location for PAULMON2
+.equ	vector, 0x8000+base			; location to LJMP interrupt vectors
 
 ; These three parameters tell PAULMON2 where the user's memory is
 ; installed.  "bmem" and "emem" define the space that will be searched
@@ -82,20 +73,31 @@
 ; may reconfigure it unexpectedly.  If flash rom is used, "bmem" and "emem"
 ; should also include the space where the flash rom is mapped.
 
-.equ	pgm, 0x4000		;default location for the user program
-.equ	bmem, 0x1000		;where is the beginning of memory
-.equ	emem, 0x7FFF		;end of the memory
+.equ	pgm, 0x8000+base			; default location for the user program
+.equ	bmem, 0x1000+base			; where is the beginning of memory
+.equ	emem, 0xFFFF+base			; end of the memory
+
+;---------------------------------------------------------;
+;							  ;
+;	                OsyterLib			  ;
+;							  ;
+;---------------------------------------------------------;
+.equ	oysterlib_locat, 0x1000+base
+.equ	oysterlib_cout, 0x00+oysterlib_locat
+.equ	oysterlib_newline, 0x02+oysterlib_locat
+.equ	oysterlib_cin, 0x04+oysterlib_locat
+.flag   use_oysterlib, 0x20.0
 
 ; To set the baud rate, use this formula or set to 0 for auto detection
 ; baud_const = 256 - (crystal / (12 * 16 * baud))
 
-.equ	baud_const, 0		;automatic baud rate detection
-;.equ	baud_const, 255		;57600 baud w/ 11.0592 MHz
-;.equ	baud_const, 253		;19200 baud w/ 11.0592 MHz
-;.equ	baud_const, 252		;19200 baud w/ 14.7456 MHz
-;.equ	baud_const, 243		;4808 baud w/ 12 MHz
+.equ	baud_const, 0				; automatic baud rate detection
+;.equ	baud_const, 255				; 57600 baud w/ 11.0592 MHz
+;.equ	baud_const, 253				; 19200 baud w/ 11.0592 MHz
+;.equ	baud_const, 252				; 19200 baud w/ 14.7456 MHz
+;.equ	baud_const, 243				; 4808 baud w/ 12 MHz
 
-.equ	line_delay, 6		;num of char times to pause during uploads
+.equ	line_delay, 6				; num of char times to pause during uploads
 
 ; About download speed: when writing to ram, PAULMON2 can accept data
 ; at the maximum baud rate (baud_const=255 or 57600 baud w/ 11.0592 MHz).
@@ -124,11 +126,11 @@
 ; download programs with the "start-up" headers on them and the code you've
 ; put in the flash rom crashes!
 
-.equ	has_flash, 0		;set to non-zero value if flash installed
-.equ	bflash, 0x8000		;first memory location of Flash ROM
-.equ	eflash, 0xFFFF		;last memory location of Flash ROM
-.equ	erase_pin, 0		;00 = disable erase pin feature
-;.equ	erase_pin, 0xB5		;B5 = pin 15, P3.5 (T1)
+.equ	has_flash, 0				; set to non-zero value if flash installed
+.equ	bflash, 0x8000				; first memory location of Flash ROM
+.equ	eflash, 0xFFFF				; last memory location of Flash ROM
+.equ	erase_pin, 0				; 00 = disable erase pin feature
+;.equ	erase_pin, 0xB5				; B5 = pin 15, P3.5 (T1)
 
 ; Development Board Wiring, http://www.pjrc.com/tech/8051/
 ; wiring is not a simple A0 to A0... works fine, but requires the
@@ -179,18 +181,18 @@
 ; really easy to change which keys do what in PAULMON2.	 You
 ; can guess what to do below, but don't use lowercase.
 
-.equ	help_key, '?'		;help screen
-.equ	dir_key,  'M'		;directory
-.equ	run_key,  'R'		;run program
-.equ	dnld_key, 'D'		;download
-.equ	upld_key, 'U'		;upload
-.equ	nloc_key, 'N'		;new memory location
-.equ	jump_key, 'J'		;jump to memory location
-.equ	dump_key, 'H'		;hex dump memory
-.equ	intm_key, 'I'		;hex dump internal memory
-.equ	edit_key, 'E'		;edit memory
-.equ	clrm_key, 'C'		;clear memory
-.equ	erfr_key, 'Z'		;erase flash rom
+.equ	help_key, '?'				; help screen
+.equ	dir_key,  'M'				; directory
+.equ	run_key,  'R'				; run program
+.equ	dnld_key, 'D'				; download
+.equ	upld_key, 'U'				; upload
+.equ	nloc_key, 'N'				; new memory location
+.equ	jump_key, 'J'				; jump to memory location
+.equ	dump_key, 'H'				; hex dump memory
+.equ	intm_key, 'I'				; hex dump internal memory
+;.equ	edit_key, 'E'				; edit memory
+.equ	clrm_key, 'C'				; clear memory
+.equ	erfr_key, 'Z'				; erase flash rom
 
 ; timing parameters for AMD Flash ROM 28F256.  These parameters
 ; and pretty conservative and they seem to work with crystals
@@ -198,24 +200,23 @@
 ; unless you know this is a problem, it is probably not a good
 ; idea to fiddle with these.
 
-;.equ	pgmwait, 10		;22.1184 MHz crystal assumed
-.equ	pgmwait, 19		;11.0592 MHz
+;.equ	pgmwait, 10				; 22.1184 MHz crystal assumed
+.equ	pgmwait, 19				; 11.0592 MHz
 .equ	verwait, 5
-;.equ	erwait1, 40		;fourty delays @22.1184
-.equ	erwait1, 20		;twenty delays for 11.0592 MHz
-.equ	erwait2, 229		;each delay .5 ms @22.1184MHz
-
+;.equ	erwait1, 40				; fourty delays @22.1184
+.equ	erwait1, 20				; twenty delays for 11.0592 MHz
+.equ	erwait2, 229				; each delay .5 ms @22.1184MHz
 
 
 ; These symbols configure paulmon2's internal memory usage.
 ; It is usually not a good idea to change these unless you
 ; know that you really have to.
 
-.equ	psw_init, 0		;value for psw (which reg bank to use)
-.equ	dnld_parm, 0x10		;block of 16 bytes for download
-;.equ	stack, 0x30		;location of the stack
-.equ	stack, 0x80		;location of the stack
-.equ	baud_save, 0x78		;save baud for warm boot, 4 bytes
+.equ	psw_init, 0				; value for psw (which reg bank to use)
+.equ	dnld_parm, 0x10				; block of 16 bytes for download
+;.equ	stack, 0x30				; location of the stack
+.equ	stack, 0x70				; location of the stack
+.equ	baud_save, 0x68				; save baud for warm boot, 4 bytes
 
 ;---------------------------------------------------------;
 ;							  ;
@@ -224,48 +225,155 @@
 ;							  ;
 ;---------------------------------------------------------;
 
-	.org	base
-	ljmp	poweron		;reset vector
+.org	base
+;***************************************************************
+;
+;		Startup
+;
+;***************************************************************
+	ljmp	poweron				; reset vector
 
-	.org	base+3
-	ljmp	vector+3	;ext int0 vector
+.org	base+0x03
+;***************************************************************
+;
+;		External interrupt 0
+;
+;***************************************************************
+	ljmp	vector+0x03			; ext int0 vector
 
 r6r7todptr:
 	mov	dpl, r6
 	mov	dph, r7
 	ret
 
-	.org	base+11
-	ljmp	vector+11	;timer0 vector
+.org	base+0x0b
+;***************************************************************
+;
+;		Timer0 overflow
+;
+;***************************************************************
+	ljmp	vector+0x0b			; timer0 vector
 
 dptrtor6r7:
 	mov	r6, dpl
 	mov	r7, dph
 	ret
 
-	.org	base+19
-	ljmp	vector+19	;ext int1 vector
+.org	base+0x13
+;***************************************************************
+;
+;		External interrupt 1
+;
+;***************************************************************
+	ljmp	vector+0x13			; ext int1 vector
 
-dash:	mov	a, #'-'		;seems kinda trivial, but each time
-	ajmp	cout		;this appears in code, it takes 4
-	nop			;bytes, but an acall takes only 2
+dash:	mov	a, #'-'				; seems kinda trivial, but each time
+	ajmp	cout				; this appears in code, it takes 4
+	nop					; bytes, but an acall takes only 2
 
-	.org	base+27
-	ljmp	vector+27	;timer1 vector
+.org	base+0x1b
+;***************************************************************
+;
+;		Timer1 overflow
+;
+;***************************************************************
+	ljmp	vector+0x1b			; timer1 vector
 
 cout_sp:acall	cout
 	ajmp	space
 	nop
 
-	.org	base+35
-	ljmp	vector+35	;uart vector
+.org	base+0x23
+;***************************************************************
+;
+;		Serial interrupt (TX/RX)
+;
+;***************************************************************
+	ljmp	vector+0x23			; UART vector
 
 dash_sp:acall	dash
 	ajmp	space
 	nop
 
-	.org	base+43
-	ljmp	vector+43	;timer2 vector (8052)
+.org	base+0x2b
+;***************************************************************
+;
+;	I2C interrupt (not on 80C562)
+;
+;***************************************************************
+	ljmp	vector+0x2b			; timer2 vector (8052)
+
+.org	base+0x33
+;***************************************************************
+;
+;	Timer2 capture 0 (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x33			; Timer2 capture 0
+
+.org	base+0x3b
+;***************************************************************
+;
+;	Timer2 capture 1 (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x3b			; Timer2 capture 1
+
+.org	base+0x43
+;***************************************************************
+;
+;	Timer2 capture 2 (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x43			; Timer2 capture 2
+
+.org	base+0x4b
+;***************************************************************
+;
+;	Timer2 capture 3 (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x4b			; Timer2 capture 3
+
+.org	base+0x53
+;***************************************************************
+;
+;	ADC completion (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x53			; ADC completion
+
+.org	base+0x5b
+;***************************************************************
+;
+;	Timer2 compare 0 (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x5b			; Timer2 compare 0
+
+.org	base+0x63
+;***************************************************************
+;
+;	Timer2 compare 1 (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x63			; Timer2 compare 1
+
+.org	base+0x6b
+;***************************************************************
+;
+;	Timer2 compare 2 (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x6b			; Timer2 compare 2
+
+.org	base+0x73
+;***************************************************************
+;
+;	Timer2 overflow (80C562)
+;
+;***************************************************************
+	ljmp	vector+0x73			; Timer2 overflow
 
 
 ;---------------------------------------------------------;
@@ -275,35 +383,35 @@ dash_sp:acall	dash
 ;							  ;
 ;---------------------------------------------------------;
 
-.org	base+46		;never change this line!!  Other
-			;programs depend on these locations
-			;to access paulmon2 functions
+.org	base+0x76				; never change this line!!  Other
+						; programs depend on these locations
+						; to access paulmon2 functions
 
-	ajmp	phex1		;2E
-	ajmp	cout		;30
-	ajmp	cin		;32
-	ajmp	phex		;34
-	ajmp	phex16		;36
-	ajmp	pstr		;38
-	ajmp	ghex		;3A
-	ajmp	ghex16		;3C
-	ajmp	esc		;4E
-	ajmp	upper		;40
-	ljmp	autobaud	;42
-pcstr_h:ljmp	pcstr		;45
-	ajmp	newline		;48
-	ljmp	lenstr		;4A
-	ljmp	pint8u		;4D
-	ljmp	pint8		;50
-	ljmp	pint16u		;53
-	ljmp	smart_wr	;56
-	ljmp	prgm		;59
-	ljmp	erall		;5C
-	ljmp	find		;5F
+	ajmp	phex1				; 0x76
+	ajmp	cout				; 0x78
+	ajmp	cin				; 0x7a
+	ajmp	phex				; 0x7c
+	ajmp	phex16				; 0x7e
+	ajmp	pstr				; 0x80
+	ajmp	ghex				; 0x82
+	ajmp	ghex16				; 0x84
+	ajmp	esc				; 0x86
+	ajmp	upper				; 0x88
+	ljmp	autobaud			; 0x8a
+pcstr_h:ljmp	pcstr				; 0x8d
+	ajmp	newline				; 0x90
+	ljmp	lenstr				; 0x92
+	ljmp	pint8u				; 0x95
+	ljmp	pint8				; 0x98
+	ljmp	pint16u				; 0x9b
+	ljmp	smart_wr			; 0x9e
+	ljmp	prgm				; 0xa1
+	ljmp	erall				; 0xa4
+	ljmp	find				; 0xa7
 cin_filter_h:
-	ljmp	cin_filter	;62
-	ajmp	asc2hex		;65
-	ljmp	erblock		;67
+	ljmp	cin_filter			; 0xaa
+	ajmp	asc2hex				; 0xad
+	ljmp	erblock				; 0xaf
 
 
 ;---------------------------------------------------------;
@@ -720,10 +828,11 @@ menu1i: cjne	a, #dump_key, menu1j
 	mov	dptr, #dump_cmd
 	acall	pcstr_h
 	ajmp	dump
-menu1j: cjne	a, #edit_key, menu1k
-	mov	dptr, #edit_cmd
-	acall	pcstr_h
-	ajmp	edit
+menu1j:
+;	 cjne	a, #edit_key, menu1k
+;	mov	dptr, #edit_cmd
+;	acall	pcstr_h
+;	ajmp	edit
 menu1k: cjne	a, #clrm_key, menu1l
 	mov	dptr, #clrm_cmd
 	acall	pcstr_h
@@ -1129,33 +1238,33 @@ dump5:	ajmp	newline
 
 ;---------------------------------------------------------;
 
-edit:	   ;edit external ram...
-	mov	dptr, #edits1
-	acall	pcstr_h
-	acall	r6r7todptr
-edit1:	acall	phex16
-	mov	a,#':'
-	acall	cout_sp
-	mov	a,#'('
-	acall	cout
-	acall	dptrtor6r7
-	clr	a
-	movc	a, @a+dptr
-	acall	phex
-	mov	dptr,#prompt10
-	acall	pcstr_h
-	acall	ghex
-	jb	psw.5,edit2
-	jc	edit2
-	acall	r6r7todptr
-	lcall	smart_wr
-	acall	newline
-	acall	r6r7todptr
-	inc	dptr
-	acall	dptrtor6r7
-	ajmp	edit1
-edit2:	mov	dptr,#edits2
-	ajmp	pcstr_h
+;edit:	   					; edit external ram...
+;	mov	dptr, #edits1
+;	acall	pcstr_h
+;	acall	r6r7todptr
+;edit1:	acall	phex16
+;	mov	a,#':'
+;	acall	cout_sp
+;	mov	a,#'('
+;	acall	cout
+;	acall	dptrtor6r7
+;	clr	a
+;	movc	a, @a+dptr
+;	acall	phex
+;	mov	dptr,#prompt10
+;	acall	pcstr_h
+;	acall	ghex
+;	jb	psw.5,edit2
+;	jc	edit2
+;	acall	r6r7todptr
+;	lcall	smart_wr
+;	acall	newline
+;	acall	r6r7todptr
+;	inc	dptr
+;	acall	dptrtor6r7
+;	ajmp	edit1
+;edit2:	mov	dptr,#edits2
+;	ajmp	pcstr_h
 
 ;---------------------------------------------------------;
 
@@ -1345,9 +1454,9 @@ help:
 	mov	r4, #intm_key
 	;mov	dptr, #intm_cmd
 	acall	help2
-	mov	r4, #edit_key
-	;mov	 dptr, #edit_cmd
-	acall	help2
+;	mov	r4, #edit_key
+;	;mov	 dptr, #edit_cmd
+;	acall	help2
 	mov	r4, #clrm_key
 	;mov	 dptr, #clrm_cmd
 	acall	help2
