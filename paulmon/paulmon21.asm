@@ -60,7 +60,7 @@
 ; and where it will attempt to LJMP at the interrupt vector locations.
 
 .equ	base, 0x0000		;location for PAULMON2
-.equ	vector, 0x2000		;location to LJMP interrupt vectors
+.equ	vector, 0x4000		;location to LJMP interrupt vectors
 
 ; These three parameters tell PAULMON2 where the user's memory is
 ; installed.  "bmem" and "emem" define the space that will be searched
@@ -70,9 +70,9 @@
 ; may reconfigure it unexpectedly.  If flash rom is used, "bmem" and "emem"
 ; should also include the space where the flash rom is mapped.
 
-.equ	pgm, 0x2000		;default location for the user program
+.equ	pgm, 0x4000		;default location for the user program
 .equ	bmem, 0x1000		;where is the beginning of memory
-.equ	emem, 0xFFFF		;end of the memory
+.equ	emem, 0x7FFF		;end of the memory
 
 ; To set the baud rate, use this formula or set to 0 for auto detection
 ; baud_const = 256 - (crystal / (12 * 16 * baud))
@@ -1079,7 +1079,8 @@ dump1:	acall	r6r7todptr
 	mov	r3, #16		;r3 counts # of bytes to print
 	acall	r6r7todptr
 dump2:	clr	a
-	movc	a, @a+dptr
+;	movc	a, @a+dptr
+	movx	a, @dptr
 	inc	dptr
 	acall	phex		;print each byte in hex
 	acall	space
@@ -1088,7 +1089,8 @@ dump2:	clr	a
 	mov	r3, #16
 	acall	r6r7todptr
 dump3:	clr	a
-	movc	a, @a+dptr
+;	movc	a, @a+dptr
+	movx	a, @dptr
 	inc	dptr
 	anl	a, #01111111b	;avoid unprintable characters
 	cjne	a, #127, dump3b
