@@ -11,23 +11,23 @@
 
 ; http://www.pjrc.com/tech/8051/pm2_docs/index.html
 
-.equ	locat, 0x2000		;location for these commands (usually 1000)
 .equ	paulmon2, 0x0000	;location where paulmon2 is at (usually 0000)
+.equ	locat, 0x2000+paulmon2	;location for these commands (usually 1000)
 
-.equ    phex1, 0x2E+paulmon2
-.equ    cout, 0x30+paulmon2		;send acc to uart
-.equ    phex, 0x34+paulmon2		;print acc in hex
-.equ    phex16, 0x36+paulmon2		;print dptr in hex
-.equ    pstr, 0x38+paulmon2		;print string @dptr
-.equ    ghex, 0x3A+paulmon2		;get two-digit hex (acc)
-.equ    ghex16, 0x3C+paulmon2		;get four-digit hex (dptr)
-.equ	upper, 0x40+paulmon2		;convert acc to uppercase
-.equ	newline, 0x48+paulmon2
-.equ	pcstr, 0x45+paulmon2
-.equ	pint, 0x50+paulmon2
-.equ	smart_wr, 0x56+paulmon2
-.equ	cin_filter, 0x62+paulmon2
-.equ	asc2hex, 0x65+paulmon2
+.equ    phex1, 0x76+paulmon2
+.equ    cout, 0x78+paulmon2		;send acc to uart
+.equ    phex, 0x7c+paulmon2		;print acc in hex
+.equ    phex16, 0x7e+paulmon2		;print dptr in hex
+.equ    pstr, 0x80+paulmon2		;print string @dptr
+.equ    ghex, 0x82+paulmon2		;get two-digit hex (acc)
+.equ    ghex16, 0x84+paulmon2		;get four-digit hex (dptr)
+.equ	upper, 0x88+paulmon2		;convert acc to uppercase
+.equ	newline, 0x90+paulmon2
+.equ	pcstr, 0x8d+paulmon2
+.equ	pint, 0x98+paulmon2
+.equ	smart_wr, 0x9e+paulmon2
+.equ	cin_filter, 0xaa+paulmon2
+.equ	asc2hex, 0xad+paulmon2
 
 
 .equ    list_key, 'L'		;list (disassemble)
