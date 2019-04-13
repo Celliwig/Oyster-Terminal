@@ -146,6 +146,7 @@
 .equ	keycode_ascii, 0x57					; Processed raw keycode to ASCII keymap
 .equ	mem_page_psen, 0x58					; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59					; Store for the currently selected RDWR page
+.equ	keymap_offset, 0x60					; Used to select the correct keymap
 
 ; Bit RAM definitions
 ; ##########################################################################
@@ -288,6 +289,7 @@ memory_config_get_mode:
 memory_config_get_mode_finish:
 	clr	c
 	ret
+
 
 ;---------------------------------------------------------;
 ;                                                         ;
@@ -474,6 +476,11 @@ i2c_tool_write_register_result:
 	lcall	pstr
 	ljmp	oysterlib_newline
 
+str_i2c_header:		.db	"I2C Tool:", 0
+str_i2c_bus_scan:	.db	"	1 - Bus Scan", 0
+str_i2c_read_reg:	.db	"	2 - Read Register", 0
+str_i2c_write_reg:	.db	"	3 - Write Register", 0
+
 
 ;---------------------------------------------------------;
 ;                                                         ;
@@ -532,7 +539,7 @@ str_screen_on:		.db	"	1 - On", 0
 str_screen_off:		.db	"	2 - Off", 0
 
 
-.org	locat+0xf00
+.org	locat+0xe00
 ; ###############################################################################################################
 ; #                                                       Strings
 ; ###############################################################################################################
@@ -542,17 +549,12 @@ str_fail:		.db	"Fail", 0
 
 str_menu_quit:		.db	"	0 - Quit", 0
 
-str_i2c_header:		.db	"I2C Tool:", 0
-str_i2c_bus_scan:	.db	"	1 - Bus Scan", 0
-str_i2c_read_reg:	.db	"	2 - Read Register", 0
-str_i2c_write_reg:	.db	"	3 - Write Register", 0
 str_i2c_addr:		.db     "I2C Address: ", 0
 str_i2c_read:		.db     "Read ", 0
 str_i2c_write:		.db     "Write ", 0
 str_i2c_register:	.db     "Register: ", 0
 str_i2c_data:		.db     "Data: ", 0
 str_i2c_enter:		.db     "Enter ", 0
-
 
 str_bank_header:	.db	"Memory Page Setup:", 0
 str_bank_config_psen:	.db	"	1 - Config PSEN", 0
@@ -563,6 +565,8 @@ str_bank_set_page:	.db	"Enter page bank: ",0
 str_bank_set_mode:	.db	"Set mode (0=ROM, 1=RAM, 3=RAM card): ", 0
 str_bank_psen_cur_psen:	.db	"Current PSEN config: ", 0
 str_bank_psen_cur_rdwr:	.db	"Current RDWR config: ", 0
+
+.org    locat+0xff0                                             ; Make sure dph is not affected by adding to dpl
 str_bank_memory_mode1:	.db	" RO", 0xcd	; 'M' + 0x80	; String table to allow easy selection of memory mode (using msb terminated strings)
 str_bank_memory_mode2:	.db	" RA", 0xcd	; 'M' + 0x80
 str_bank_memory_mode3:	.db	" IN", 0xd6	; 'V' + 0x80
