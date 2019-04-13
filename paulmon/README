@@ -13,4 +13,8 @@ This has been augmented with a library (OysterLib) of hardware related functions
  * LCD library (character based functions to print to screen)
  * Misc functions (non-specific functions which don't group together, e.g. beep function)
 
-In addition, PAULMON supports the easy inclusion of additional commands. Several commands have been implemented
+In addition, PAULMON supports the easy inclusion of additional commands. Several commands have been implemented to
+'breakout' OysterLib capabilities, these include:
+
+ * Memory page selection tool
+ * I2C tool (bus scan/register read/write)
