@@ -7,8 +7,8 @@ for example), so a replacement ROM was neccessary.
 
 Being based on the 80C562 (a derivative of the 8051) a number of different options, whether a monitor or BASIC 
 interpreter, are readily available. To maximise programmability a combination of monitor (PAULMON) and BASIC 
-(MCS BASIC) was selected. These where then developed to support the hardware in question.
+(MCS BASIC) was selected. These were then developed to support the hardware in question.
 
 ## References
-[PAULMON2](https://www.pjrc.com/tech/8051/paulmon2.html)
+[PAULMON2](https://www.pjrc.com/tech/8051/paulmon2.html)</br>
 [MCS BASIC resources](https://www.dos4ever.com/8031board/8031board.html)
