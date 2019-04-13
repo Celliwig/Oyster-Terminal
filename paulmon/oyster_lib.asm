@@ -89,6 +89,7 @@
 .equ	keycode_ascii, 0x57							; Processed raw keycode to ASCII keymap
 .equ	mem_page_psen, 0x58							; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59							; Store for the currently selected RDWR page
+.equ	keymap_offset, 0x60							; Used to select the correct keymap
 
 ; Bit RAM definitions
 ; ##########################################################################
@@ -949,8 +950,6 @@ rtc_set_datetime_finish:
 ; #   keycode_raw - Raw keycode
 ; ##########################################################################
 keyboard_scan:
-	mov	keycode_raw, #0xff						; Clear buffer (0 not used as it's a valid keycode)
-
 	mov	dph, #keycolumn_addr
 	setb	p1.4								; Enable address select
 
@@ -1027,16 +1026,47 @@ keyboard_read_key_make_keycode:
 	dec	r0								; Adjust value (1-8 => 0-7)
 	mov	a, r4								; Get column data (0bxxCCCxxx)
 	orl	a, r0								; Combine with row data
-	cjne	a, keycode_raw, keyboard_read_key_make_keycode_update		; Update if different key
+	jnb	keyboard_key_down, keyboard_read_key_make_keycode_update	; Update if different key
 	sjmp	keyboard_reset							; Otherwise ignore this result
 keyboard_read_key_make_keycode_update:
 	mov	keycode_raw, a							; Save result (0bxxCCCRRR)
+	setb	keyboard_key_down						; Set, so we don't loop on the same key press
+keyboard_read_key_make_keycode_check_mode:
+	cjne	a, #0x20, keyboard_read_key_make_keycode_check_mode_lock	; Look for the 'mode' keycode
+	mov	a, keymap_offset						; Get the currently selected keymap
+	jnb	acc.7, keyboard_read_key_make_keycode_check_mode_inc
+	mov	keymap_offset, #0x00						; Select default keymap
+	sjmp	keyboard_reset
+keyboard_read_key_make_keycode_check_mode_inc:
+	add	a, #0x30							; Select next keymap
+	mov	keymap_offset, a
+	cjne	a, #0x61, keyboard_read_key_make_keycode_check_mode_inc_cmp	; Check if we have cycled through all keymaps
+keyboard_read_key_make_keycode_check_mode_inc_cmp:
+	jc	keyboard_reset
+	mov	keymap_offset, #0x00						; Select default keymap
+	sjmp	keyboard_reset
+keyboard_read_key_make_keycode_check_mode_lock:
+	cjne	a, #0x2C, keyboard_read_key_make_keycode_ascii			; Check for 'DEL' key
+	xch	a, keymap_offset
+	jnz	keyboard_read_key_make_keycode_mode_lock
+	xch	a, keymap_offset
+	sjmp	keyboard_read_key_make_keycode_ascii
+keyboard_read_key_make_keycode_mode_lock:
+	cpl	acc.7								; Toggle 'lock' bit
+	xch	a, keymap_offset
+	ajmp	keyboard_reset
+keyboard_read_key_make_keycode_ascii:
 	mov	dptr, #keycode_2_character_table1				; Get conversion table
+	mov	dpl, keymap_offset						; Select the correct keymap
+	anl	dpl, #0x7F							; Remove the 'lock' bit
 	movc	a, @a+dptr							; Get the corresponding character for the raw code
 	mov	keycode_ascii, a						; Store for processing
-	setb	keyboard_new_char						; Set flags indicating new character
-	setb	keyboard_key_down						;
-	sjmp	keyboard_reset
+	setb	keyboard_new_char						; Set flag indicating new character
+	mov	a, keymap_offset						; Check if an alternate keymap is selected
+	jb	acc.7, keyboard_read_key_make_keycode_ascii_finish
+	mov	keymap_offset, #0x00						; Select the default keymap
+keyboard_read_key_make_keycode_ascii_finish:
+	ajmp	keyboard_reset
 
 
 ; # keyboard_wait_for_keypress
@@ -1953,7 +1983,8 @@ glyph_double_size_conversion_table:
 	.db	0x00, 0x03, 0x0c, 0x0f, 0x30, 0x33, 0x3c, 0x3f
 	.db	0xc0, 0xc3, 0xcc, 0xcf, 0xf0, 0xf3, 0xfc, 0xff
 
-; Normal keymap
+.org    locat+0xB00								; location defined so the different keymaps can easily be selected
+; Keymap
 keycode_2_character_table1:
 	.db	'A'	; A
 	.db	'E'	; E
@@ -1962,7 +1993,7 @@ keycode_2_character_table1:
 	.db	'W'	; W
 	.db	0x0b	; Up
 	.db	0x0a	; Down
-	.db	0x18	; Cancel
+	.db	0x03	; Cancel (Ctrl-C)
 	.db	'B'	; B
 	.db	'F'	; F
 	.db	'L'	; L
@@ -1987,7 +2018,7 @@ keycode_2_character_table1:
 	.db	'9'	; 9
 	.db	'6'	; 6
 	.db	'3'	; 3
-	.db	0x80	; Menu
+	.db	0xFF	; Mode
 	.db	'I'	; I
 	.db	'O'	; O
 	.db	'U'	; U
@@ -1999,6 +2030,104 @@ keycode_2_character_table1:
 	.db	'J'	; J
 	.db	'P'	; P
 	.db	'V'	; V
+	.db	0x7f	; Delete
+	.db	0x08	; Left
+	.db	0x09	; Right
+	.db	0x0d	; Enter
+keycode_2_character_table2:
+	.db	'a'	; A
+	.db	'e'	; E
+	.db	'k'	; K
+	.db	'q'	; Q
+	.db	'w'	; W
+	.db	0x0b	; Up
+	.db	0x0a	; Down
+	.db	0x04	; Cancel (Ctrl-D)
+	.db	'b'	; B
+	.db	'f'	; F
+	.db	'l'	; L
+	.db	'r'	; R
+	.db	'x'	; X
+	.db	'&'	; 7
+	.db	'$'	; 4
+	.db	'!'	; 1
+	.db	'c'	; C
+	.db	'g'	; G
+	.db	'm'	; M
+	.db	's'	; S
+	.db	'y'	; Y
+	.db	'*'	; 8
+	.db	'%'	; 5
+	.db	'"'	; 2
+	.db	'd'	; D
+	.db	'h'	; H
+	.db	'n'	; N
+	.db	't'	; T
+	.db	'z'	; Z
+	.db	'('	; 9
+	.db	'^'	; 6
+	.db	0x9C	; 3 (£)
+	.db	0xFF	; Mode
+	.db	'i'	; I
+	.db	'o'	; O
+	.db	'u'	; U
+	.db	' '	; ' '
+	.db	','	; .
+	.db	')'	; 0
+	.db	'_'	; -
+	.db	0xff	;
+	.db	'j'	; J
+	.db	'p'	; P
+	.db	'v'	; V
+	.db	0x7f	; Delete
+	.db	0x08	; Left
+	.db	0x09	; Right
+	.db	0x0d	; Enter
+keycode_2_character_table3:
+	.db	'='	; A
+	.db	'{'	; E
+	.db	'@'	; K
+	.db	'?'	; Q
+	.db	0x4F	; W (End, when preceded by a null character)
+	.db	0x0b	; Up
+	.db	0x0a	; Down
+	.db	0x18	; Cancel
+	.db	'+'	; B
+	.db	'}'	; F
+	.db	0x27	; L (')
+	.db	'|'	; R
+	.db	0x1B	; X (Escape)
+	.db	0x41	; 7 (F7, when preceded by a null character)
+	.db	0x3E	; 4 (F4, when preceded by a null character)
+	.db	0x3B	; 1 (F1, when preceded by a null character)
+	.db	'/'	; C
+	.db	'['	; G
+	.db	'~'	; M
+	.db	0x5C	; S (\)
+	.db	0x49	; Y (PageUp, when preceded by a null character)
+	.db	0x42	; 8 (F8, when preceded by a null character)
+	.db	0x3F	; 5 (F5, when preceded by a null character)
+	.db	0x3C	; 2 (F2, when preceded by a null character)
+	.db	'?'	; D
+	.db	']'	; H
+	.db	'#'	; N
+	.db	0xAC	; T (¬)
+	.db	0x51	; Z (PageDown, when preceded by a null character)
+	.db	0x43	; 9 (F9, when preceded by a null character)
+	.db	0x40	; 6 (F6, when preceded by a null character)
+	.db	0x3D	; 3 (F3, when preceded by a null character)
+	.db	0xFF	; Mode
+	.db	':'	; I
+	.db	'<'	; O
+	.db	'`'	; U
+	.db	' '	; ' '
+	.db	0x86	; . (F12, when preceded by a null character)
+	.db	0x44	; 0 (F10, when preceded by a null character)
+	.db	0x85	; - (F11, when preceded by a null character)
+	.db	0xff	;
+	.db	';'	; J
+	.db	'>'	; P
+	.db	0x47	; V (Home, when preceded by a null character)
 	.db	0x7f	; Delete
 	.db	0x08	; Left
 	.db	0x09	; Right
@@ -2206,6 +2335,8 @@ system_init:
 system_init_keyboard:
 	lcall	keyboard_reset
 	clr	keyboard_new_char
+	mov	keycode_raw, #0xff						; Clear buffer (0 not used as it's a valid keycode)
+	mov	keymap_offset, #0						; Select first keymap
 
 system_init_lcd:
 	mov	a, #4
