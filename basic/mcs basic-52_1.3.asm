@@ -184,6 +184,8 @@
 ;*****************************************************************************
 
 ;*****************************************************************************
+; Modified code so that a base offset can be set.
+;
 ; Timer assignment swapped to support 80C562, timer2 cannot be used for baud
 ; generation.
 ;
@@ -226,8 +228,147 @@
 ;
 ; Timer2 then swapped with 80C562 Timer2
 ;
+; Additional space reserved for new ISVs, also user console et al. moved to
+; allow for additional interrupt routines in user space.
+;
+; External reset mechanism modified so that it can bypass internal register
+; reset on startup, there by preserving existing information.
+;
+; Can use the baud rate determined by PaulMON.
+;
 ; C. Burgoyne 03/2019
 ;*****************************************************************************
+
+; ###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###
+; ###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###
+
+; PaulMON misc.
+; ##########################################################################
+.equ	baud_save, 0x68				; save baud for warm boot, 4 bytes
+
+; OysterLib functions
+; ##########################################################################
+.equ	console_lib, 0x1000
+.equ	math_lib, 0x1006
+.equ	memory_lib, 0x100A
+.equ	i2c_lib, 0x1014
+.equ	rtc_lib, 0x102A
+.equ	keyboard_lib, 0x1038
+.equ	lcd_lib, 0x103E
+.equ	misc_lib, 0x1056
+
+; console lib
+.equ	oysterlib_cout, console_lib+0x00
+.equ	oysterlib_newline, console_lib+0x02
+.equ	oysterlib_cin, console_lib+0x04
+
+; math lib
+.equ	packed_bcd_to_hex, math_lib+0x00
+.equ	hex_to_packed_bcd, math_lib+0x02
+
+; memory lib
+.equ	memory_set_page_psen, memory_lib+0x00
+.equ	memory_set_page_rdwr, memory_lib+0x02
+.equ	memory_set_mode_psen, memory_lib+0x04
+.equ	memory_set_mode_rdwr, memory_lib+0x06
+.equ	memory_ramcard_present, memory_lib+0x08
+
+; i2c lib
+.equ	i2c_start, i2c_lib+0x00
+.equ	i2c_stop_clock_stretch_check, i2c_lib+0x02
+.equ	i2c_stop, i2c_lib+0x04
+.equ	i2c_write_byte, i2c_lib+0x06
+.equ	i2c_ack_check, i2c_lib+0x08
+.equ	i2c_write_byte_to_addr, i2c_lib+0x0a
+.equ	i2c_write_byte_with_ack_check, i2c_lib+0x0c
+.equ	i2c_read_byte, i2c_lib+0x0e
+.equ	i2c_master_read_ack, i2c_lib+0x10
+.equ	i2c_read_byte_from_addr, i2c_lib+0x12
+.equ	i2c_read_device_register, i2c_lib+0x14
+
+; rtc lib
+.equ	rtc_get_config, rtc_lib+0x00
+.equ	rtc_get_alarm_config, rtc_lib+0x02
+.equ	rtc_set_config, rtc_lib+0x04
+.equ	rtc_set_alarm_config, rtc_lib+0x06
+.equ	rtc_init, rtc_lib+0x08
+.equ	rtc_get_datetime, rtc_lib+0x0a
+.equ	rtc_set_datetime, rtc_lib+0x0c
+
+; keyboard lib
+.equ	keyboard_scan, keyboard_lib+0x00
+.equ	keyboard_reset, keyboard_lib+0x02
+.equ	keyboard_wait_for_keypress, keyboard_lib+0x04
+
+; lcd lib
+.equ	lcd_off, lcd_lib+0x00
+.equ	lcd_init, lcd_lib+0x02
+.equ	lcd_clear_screen, lcd_lib+0x04
+.equ	lcd_clear_screen_from_position, lcd_lib+0x06
+.equ	lcd_new_line_scroll_and_clear, lcd_lib+0x08
+.equ	lcd_print_character, lcd_lib+0x0a
+.equ	lcd_set_glyph_position, lcd_lib+0x0c
+.equ	lcd_pstr, lcd_lib+0x0e
+.equ	lcd_set_backlight_on, lcd_lib+0x10
+.equ	lcd_set_backlight_off, lcd_lib+0x12
+.equ	lcd_set_contrast_inc, lcd_lib+0x14
+.equ	lcd_set_contrast_dec, lcd_lib+0x16
+
+; misc lib
+.equ	piezo_beep, misc_lib+0x00
+.equ	piezo_pwm_sound, misc_lib+0x02
+.equ	sdelay, misc_lib+0x04
+.equ	battery_check_status, misc_lib+0x06
+
+
+; RAM definitions
+; ##########################################################################
+.equ	rb3r0, 0x18						; User memory
+.equ	rb3r1, 0x19
+.equ	rb3r2, 0x1A
+.equ	rb3r3, 0x1B
+.equ	rb3r4, 0x1C
+.equ	rb3r5, 0x1D
+.equ	rb3r6, 0x1E
+.equ	rb3r7, 0x1F
+
+; Bit addressable addresses (0x20-0x21 not used by MCS BASIC)
+.equ	stack_carry, 0x20					; Save Carry state here to load on the stack
+.equ	mem_mode, 0x20						; Bit addressable, memory mode store
+
+; Addresses (0x50-0x67 not used by MCS BASIC/PaulMON, stack = 0x70)
+.equ	lcd_font_table_msb, 0x50				; MSB of the address of the font table
+.equ	lcd_scroll_offset, 0x51					; LCD start draw line
+.equ	lcd_start_position, 0x52				; Start position for LCD operations (b0-b4 - column, b5-7 - row)
+.equ	lcd_subscreen_row, 0x53					; Current subscreen row
+.equ	lcd_subscreen_column, 0x54				; Current subscreen column
+.equ	lcd_properties, 0x55					; Current contrast/backlight value
+.equ	keycode_raw, 0x56					; Raw keycode, read from hardware
+.equ	keycode_ascii, 0x57					; Processed raw keycode to ASCII keymap
+.equ	mem_page_psen, 0x58					; Store for the currently selected PSEN page
+.equ	mem_page_rdwr, 0x59					; Store for the currently selected RDWR page
+
+; Bit RAM definitions
+; ##########################################################################
+.flag	use_oysterlib, 0x20.0
+.flag	mem_mode_psen_ram, 0x20.2				; This bit is not randomly chosen, see memory command
+.flag	mem_mode_psen_ram_card, 0x20.3				; This bit is not randomly chosen, see memory command
+.flag	tmp_bit, 0x20.4
+.flag	stack_carry_bit, 0x20.5
+.flag	mem_mode_rdwr_ram, 0x20.6				; This bit is not randomly chosen, see memory command
+.flag	mem_mode_rdwr_ram_card, 0x20.7				; This bit is not randomly chosen, see memory command
+
+.flag	lcd_glyph_doublewidth, 0x21.0
+.flag	lcd_glyph_doubleheight, 0x21.1
+.flag	lcd_glyph_doubleheight_otherhalf, 0x21.2
+.flag	lcd_glyph_invert, 0x21.3
+.flag	lcd_no_scroll, 0x21.4
+.flag	lcd_glyph_use_ram, 0x21.5
+.flag	keyboard_key_down, 0x21.6
+.flag	keyboard_new_char, 0x21.7
+
+; ###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###
+; ###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###
 
 ;**************************************************************
 ;
@@ -331,7 +472,7 @@
 ;.equ	TH2, 0xCD						; Timer2 high byte SFR
 
 ; Ports
-.flag	io_toggle_bit, P1.2					; I/O TOGGLE BIT
+;.flag	io_toggle_bit, P1.2					; I/O TOGGLE BIT
 ;*****************************************************************************
 ;ALED          BIT     P1.3					; ALE DISABLE
 ;PROMP         BIT     P1.4					; PROM PULSE
@@ -734,6 +875,9 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ; Timer2 capture 0 (80C562)
 ;
 ;**************************************************************
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x4033
+
 
 .org	mcs_basic_locat+0x3B
 ;**************************************************************
@@ -741,6 +885,9 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ; Timer2 capture 1 (80C562)
 ;
 ;**************************************************************
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x403B
+
 
 .org	mcs_basic_locat+0x43
 ;**************************************************************
@@ -748,6 +895,9 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ; Timer2 capture 2 (80C562)
 ;
 ;**************************************************************
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x4043
+
 
 .org	mcs_basic_locat+0x4B
 ;**************************************************************
@@ -755,6 +905,9 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ; Timer2 capture 3 (80C562)
 ;
 ;**************************************************************
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x404B
+
 
 .org	mcs_basic_locat+0x53
 ;**************************************************************
@@ -762,6 +915,9 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ; ADC completion (80C562)
 ;
 ;**************************************************************
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x4053
+
 
 .org	mcs_basic_locat+0x5B
 ;**************************************************************
@@ -769,6 +925,9 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ; Timer2 compare 0 (80C562)
 ;
 ;**************************************************************
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x405B
+
 
 .org	mcs_basic_locat+0x63
 ;**************************************************************
@@ -776,6 +935,9 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ; Timer2 compare 1 (80C562)
 ;
 ;**************************************************************
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x4063
+
 
 .org	mcs_basic_locat+0x6B
 ;**************************************************************
@@ -783,6 +945,9 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ; Timer2 compare 2 (80C562)
 ;
 ;**************************************************************
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x406B
+
 
 .org	mcs_basic_locat+0x73
 ;**************************************************************
@@ -792,9 +957,10 @@ jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
 ;**************************************************************
 	PUSH	PSW						; SAVE THE STATUS
 	JB	clock_running, jmp2_clock_tick_handler		; SEE IF USER WANTS INTERRUPT
-	LJMP	mcs_basic_locat+0x402B				; EXIT IF USER WANTS INTERRUPTS
+	LJMP	mcs_basic_locat+0x4073				; EXIT IF USER WANTS INTERRUPTS
 
-
+; Call to run BASIC routine (moved from 0x30)
+.org	mcs_basic_locat+0x7B
 	LJMP	IBLK						; LINK TO USER BLOCK
 
 
@@ -1353,14 +1519,9 @@ system_startup:
 ;*****************************************************************************
 
 	MOV	TCON, #0x54					; Timer0/1: running, Ext.1 interrupt: low level
-; Should initialise these registers
-; however there power on value is okay
-;	clr	a
-;	mov	sfr_ie2_80c562, a				; Disable all timer2 interrupts
-;	mov	sfr_ste_80c562, a				; Disable timer2 compare actions
-;	mov	sfr_ctcon_80c562, a				; Disable timer2 capture actions
-;	mov	sfr_rte_80c562, a				; Disable timer2 compare actions
-	mov	sfr_t2con_80c562, #0x81				; Timer2: running, Clk src: fosc/12, Prescaler: 1/1, 16-bit overflow interrupt: enabled
+; This is configured in the startup extension
+; More space there to init other registers
+;	mov	sfr_t2con_80c562, #0x81				; Timer2: running, Clk src: fosc/12, Prescaler: 1/1, 16-bit overflow interrupt: enabled
 
 ;	MOV	T2CON, #0x04					; Timer2: running (8052)
 ;	DB	75H						; MOV DIRECT, # OP CODE
@@ -1373,12 +1534,14 @@ system_startup_restart:
 	MOVC	A, @A+DPTR
 	CJNE	A, #0xAA, system_startup1			; IF IT IS AN AAH, DO USER RESET
 	LCALL	mcs_basic_locat+0x2090
+	jz	system_startup_xram_init			; If the user reset initialised the internal registers, don't do it again
 system_startup1:
 	MOV	R0, #iram_top					; PUT THE TOP OF RAM IN R0
 	CLR	A						; ZERO THE ACC
 system_startup2:
 	MOV	@R0, A						; CLEAR INTERNAL MEMORY
 	DJNZ	R0, system_startup2				; LOOP TIL DONE
+system_startup_xram_init:
 	; Now, test the external memory
 	MOV	sp_save, #sys_stack_top				; SET UP THE STACK
 	MOV	SP, sp_save
@@ -1454,7 +1617,7 @@ system_config_crystal:
 	LCALL	AXTAL0						; DO THE CRYSTAL
 	MOV	A, MT1						; GET THE RESET BYTE
 	CJNE	A, #5, system_config_serial
-	LCALL	mcs_basic_locat+0x4039
+	LCALL	mcs_basic_locat+0x4089
 system_config_serial:
 	JNC	system_serial_config				; CHECK FOR 0,1,2,3, OR 4
 	JNB	ACC.0, system_start_basic			; NO RUN IF WRONG TYPE
@@ -1468,9 +1631,7 @@ system_config_serial:
 ;******* Wulf 3 alteration 1 *************************************************
 
 system_serial_set_baud:
-;	mov	TH1, r1						; Timer1 set reload rate (baud rate)
-	mov	TH1, #252					; Timer1 set reload rate (baud rate)
-	ret
+	ljmp	serial_set_baud
 
 system_serial_config:
 ;	CLR	 A						; DO BAUD RATE
@@ -1841,7 +2002,7 @@ CROM:
 C_K:
 	LJMP	CL3				; EXIT
 ;RO1:
-;	 CALL	 INTGER 			; SEE IF INTGER PRESENT
+;	 CALL	 get_int_from_txt 			; SEE IF INTGER PRESENT
 ;	 MOV	 R4, rb0r0			; SAVE THE NUMBER
 ;	 JNC	 $+4
 ;	 MOV	 R4, #01H			; ONE IF NO INTEGER PRESENT
@@ -2311,12 +2472,14 @@ INLINE:
 INL1:
 	ACALL	INCHAR				; GET A CHARACTER
 	MOV	R5, A				; SAVE IN R5 FOR OUTPUT
-	CJNE	A, #0x7F, INL2			; SEE IF A DELETE CHARACTER
+;	CJNE	A, #0x7F, INL2			; SEE IF A DELETE CHARACTER
+	CJNE	A, #BS, INL2			; SEE IF A backspace CHARACTER
 	CJNE	R0, #LOW_IBUF, INL6
 INL11:
 	MOV	R5, #BELL			; OUTPUT A BELL
 INLX:
 	ACALL	TEROT				; OUTPUT CHARACTER
+	MOV	P2, #HIGH_IBUF			; Reset Port2 as user output console can also access it
 	SJMP	INL1				; DO IT AGAIN
 INL2B:
 	MOVX	@R0, A				; SAVE THE CHARACTER
@@ -2416,12 +2579,12 @@ TEROT02:
 	AJMP	TEROT1				; CLEAN UP
 TEROT03:
 	JNB	ucon_out, TEROT04		; SEE IF USER WANTS OUTPUT
-	LCALL	mcs_basic_locat+0x4030
+	LCALL	mcs_basic_locat+0x4080
 	AJMP	TEROT1
 TEROT04:
 	JNB	at_valid, T_1 			; NO AT IF NO extern_prog
 	JNB	use_linep, T_1 			; AT PRINT
-	LCALL	mcs_basic_locat+0x403C		; CALL AT LOCATION
+	LCALL	mcs_basic_locat+0x408C		; CALL AT LOCATION
 	AJMP	TEROT1				; FINISH OFF OUTPUT
 T_1:
 ;	JNB	con_out, TXX 			; SEE IF LIST SET
@@ -2489,7 +2652,7 @@ INCHAR:
 	SJMP	INCH1
 INCHAR1:
 	JNB	ucon_in, INCHAR2		; CHECK FOR USER
-	LCALL	mcs_basic_locat+0x4033
+	LCALL	mcs_basic_locat+0x4083
 	SJMP	INCH1
 INCHAR2:
 	JNB	RI, *				; WAIT FOR RECEIVER READY.
@@ -2547,7 +2710,7 @@ CSTS:
 	LJMP	mcs_basic_locat+0x2068
 CSTS1:
 	JNB	ucon_in, CSTS2			; SEE IF EXTERNAL CONSOLE
-	LJMP	mcs_basic_locat+0x4036
+	LJMP	mcs_basic_locat+0x4086
 CSTS2:
 	MOV	C, RI
 	RET
@@ -3112,7 +3275,7 @@ E_FIND:
 	ACALL	GCI1				; BUMP PAST TOKEN
 	CJNE	A, #T_ELSE, E_FIND		; WASTE IF NO ELSE
 T_F1:
-	ACALL	INTGER				; SEE IF NUMBER
+	ACALL	get_int_from_txt				; SEE IF NUMBER
 	JNC	D_L1				; EXECUTE LINE NUMBER
 	AJMP	ISTAT				; EXECUTE STATEMENT IN NOT
 B_C:
@@ -3196,7 +3359,7 @@ FL2:
 ;
 ;*************************************************************
 RLINE:
-	ACALL	INTERR				; GET THE INTEGER
+	ACALL	get_int_from_txt_check_4_error	; GET THE INTEGER
 RL1:
 	ACALL	GLN
 	AJMP	CLN_UP
@@ -3227,9 +3390,9 @@ S_WU:
 ;
 ;***************************************************************
 CNULL:
-	ACALL	INTERR				; GET AN INTEGER FOLLOWING NULL
-	MOV	null_cnt, R0			; SAVE THE NULLCOUNT
-	AJMP	CMNDLK				; JUMP TO COMMAND MODE
+	ACALL	get_int_from_txt_check_4_error			; GET AN INTEGER FOLLOWING NULL
+	MOV	null_cnt, R0					; SAVE THE NULLCOUNT
+	AJMP	CMNDLK						; JUMP TO COMMAND MODE
 
 ;***************************************************************
 ;
@@ -3621,7 +3784,7 @@ C0:
 	AJMP	SGS0				; DO GOSUB
 C1:
 	CJNE	R1, #0, C2
-	ACALL	INTERR				; GET THE LINE NUMBER
+	ACALL	get_int_from_txt_check_4_error	; GET THE LINE NUMBER
 	ACALL	FINDCR
 	AJMP	RL1				; FINISH UP THIS LINE
 C2:
@@ -3858,17 +4021,17 @@ SOT:
 ;
 ;***************************************************************
 SCALL:
-	ACALL	INTERR				; CONVERT INTEGER
-	CJNE	R2, #0, S_C_1			; SEE IF TRAP
+	ACALL	get_int_from_txt_check_4_error			; CONVERT INTEGER
+	CJNE	R2, #0, S_C_1					; SEE IF TRAP
 	MOV	A, R0
 	JB	ACC.7, S_C_1
 	ADD	A, R0
-	MOV	DPTR, #0x4100
+	MOV	DPTR, #mcs_basic_locat+0x4100
 	MOV	DPL, A
 S_C_1:
-	ACALL	AC1				; JUMP TO USER PROGRAM
-	ANL	PSW, #0b11100111		; BACK TO BANK 0
-	RET					; EXIT
+	ACALL	AC1						; JUMP TO USER PROGRAM
+	ANL	PSW, #0b11100111				; BACK TO BANK 0
+	RET							; EXIT
 
 ;**************************************************************
 ;
@@ -4032,7 +4195,7 @@ WCR:
 ;***************************************************************
 VAR_ER:
 	ACALL	VAR
-	SJMP	INTERR1
+	SJMP	get_int_from_txt_check_4_error1
 
 
 ;***************************************************************
@@ -4084,18 +4247,18 @@ B_TXA1:
 ;	  returns the terminator in ACC
 ;
 ;***************************************************************
-INTERR:
-	ACALL	INTGER				; GET THE INTEGER
-INTERR1:
+get_int_from_txt_check_4_error:
+	ACALL	get_int_from_txt				; GET THE INTEGER
+get_int_from_txt_check_4_error1:
 	JC	EP5				; ERROR IF NOT FOUND
 	RET					; EXIT IF FOUND
-INTGER:
+get_int_from_txt:
 	ACALL	DP_T
 	lcall	FP_BASE9			; CONVERT THE INTEGER
 	ACALL	T_DP
 	MOV	DPH, R2				; PUT THE RETURNED VALUE IN THE DPTR
 	MOV	DPL, R0
-ITRET:
+get_int_from_txt_return:
 	RET					; EXIT
 
 
@@ -4145,7 +4308,7 @@ EP41:
 EP42:
 	JNC	XBILT				; PROCESS UNARY (BUILT IN) OPERATOR
 	POP	rb0r2				; GET BACK PREVIOUS OPERATOR PRECEDENCE
-	JB	astack_has_val, ITRET		; OK IF ARG FLAG IS SET
+	JB	astack_has_val, get_int_from_txt_return		; OK IF ARG FLAG IS SET
 EP5:
 	CLR	C				; NO RECOVERY
 	LJMP	E1XX1
@@ -4167,10 +4330,10 @@ XOP1:
 	MOV	R5, A				; SAVE THE PREVIOUS PRECEDENCE
 	MOVC	A, @A+DPTR			; GET IT
 	CJNE	A, rb0r4, XOP11			; SEE WHICH HAS HIGHER PRECEDENCE
-	CJNE	A, #12, ITRET			; SEE IF ANEG
+	CJNE	A, #12, get_int_from_txt_return			; SEE IF ANEG
 	SETB	C
 XOP11:
-	JNC	ITRET				; PROCESS NON-INCREASING PRECEDENCE
+	JNC	get_int_from_txt_return				; PROCESS NON-INCREASING PRECEDENCE
 	;
 	; Save increasing precedence
 	;
@@ -4344,7 +4507,7 @@ FPTS:
 CLIST:
 	lcall	NUMC				; SEE IF TO LINE PORT
 	ACALL	FSTK				; PUT 0FFFFH ON THE STACK
-	lcall	INTGER				; SEE IF USER SUPPLIES LN
+	lcall	get_int_from_txt				; SEE IF USER SUPPLIES LN
 	CLR	A				; LN = 0 TO START
 	MOV	R3, A
 	MOV	R1, A
@@ -4353,7 +4516,7 @@ CLIST:
 	lcall	GCI				; GET THE CHARACTER AFTER LIST
 	CJNE	A, #T_SUB, CLIST1 		; CHECK FOR TERMINATION ADDRESS '-'
 	ACALL	INC_ASTKA			; WASTE 0FFFFH
-	LCALL	INTERR				; GET TERMINATION ADDRESS
+	LCALL	get_int_from_txt_check_4_error	; GET TERMINATION ADDRESS
 	ACALL	TWO_EY				; PUT TERMINATION ON THE ARG STACK
 CLIST1:
 	MOV	R3, tmp_reg5			; GET THE START ADDTESS
@@ -5226,7 +5389,7 @@ ADIV:
 ;
 ;***************************************************************
 SONERR:
-	LCALL	INTERR				; GET THE LINE NUMBER
+	LCALL	get_int_from_txt_check_4_error	; GET THE LINE NUMBER
 	SETB	on_err_exec
 	MOV	DPTR, #ERRNUM			; POINT AT THR ERROR LOCATION
 	SJMP	S20DP
@@ -5238,7 +5401,7 @@ SONERR:
 ;
 ;**************************************************************
 SONEXT:
-	LCALL	INTERR
+	LCALL	get_int_from_txt_check_4_error
 	SETB	irq_set
 	ORL	IE, #0b10000100			; ENABLE INTERRUPTS
 	MOV	DPTR, #INTLOC
@@ -5675,7 +5838,7 @@ TB:
 ;***************************************************************
 PP:
 	ACALL	T_BUF				; TXA GETS IBUF
-	lcall	INTGER				; SEE IF A NUMBER PRESENT
+	lcall	get_int_from_txt				; SEE IF A NUMBER PRESENT
 	lcall	TEMPD				; SAVE THE INTEGER IN tmp_reg5:tmp_reg4
 	MOV	F0, C				; SAVE INTEGER IF PRESENT
 	MOV	DPTR, #IBLN			; SAVE THE LINE NUMBER, EVEN IF NONE
@@ -5876,7 +6039,8 @@ STONE:
 	lcall	THREE						; GET THE NUMBERS
 	ACALL	CBIAS						; BIAS R3:R1 FOR COUNT LOOP
 STONE1:
-	CLR	io_toggle_bit					; TOGGLE THE BIT
+	mov	sfr_pwm1_80c562, #0xFF				; Forces PWM1 (piezo) low
+;	CLR	io_toggle_bit					; TOGGLE THE BIT
 	CLR	TR0						; STOP THE TIMER
 	MOV	TH0, R3						; LOAD THE TIMER
 	MOV	TL0, R1
@@ -5885,7 +6049,9 @@ STONE1:
 	ACALL	DEC76
 	JNB	TF0, *						; WAIT
 	ACALL	ALPAR
-	SETB	io_toggle_bit					; BACK TO A ONE
+
+	mov	sfr_pwm1_80c562, #0x00				; Forces PWM1 (piezo) high
+;	SETB	io_toggle_bit					; BACK TO A ONE
 	lcall	timer0_reload_run1				; LOAD THE HIGH VALUE
 	JNB	TF0, *						; WAIT
 	JNZ	STONE1						; LOOP
@@ -6168,21 +6334,21 @@ test_4_user_extensions_finish:
 ;****** continue with original code: *****************************************
 
 ; CONSTANTS
-XTALV:
-	.db	128+8				; DEFAULT CRYSTAL VALUE (11059200)
-	.db	0x00
-	.db	0x00
-	.db	0x92
-	.db	0x05
-	.db	0x11
-
 ;XTALV:
-;	.db	128+8				; 7372800 HZ
+;	.db	128+8				; DEFAULT CRYSTAL VALUE (11059200)
 ;	.db	0x00
 ;	.db	0x00
-;	.db	0x28
-;	.db	0x37
-;	.db	0x07
+;	.db	0x92
+;	.db	0x05
+;	.db	0x11
+
+XTALV:
+	.db	128+8				; 7372800 HZ
+	.db	0x00
+	.db	0x00
+	.db	0x28
+	.db	0x37
+	.db	0x07
 
 EXP11:
 	.db	0x85
@@ -8125,6 +8291,16 @@ HOUTLO:
 ;	xch	a, r1
 ;	ret
 ;
+
+serial_set_baud:
+	lcall	paulmon_check_4_baud				; Check whether a baud rate determined by PaulMON has been stored
+	jnc	serial_set_baud_default
+	mov	TH1, baud_save+3				; Retrieve the baud rate determined by PaulMON
+	ret
+serial_set_baud_default:
+	mov	TH1, #252					; Timer1 set reload rate (baud rate: 9600)
+	ret
+
 ;*****************************************************************************
 
 .org	mcs_basic_locat+0x1F78
