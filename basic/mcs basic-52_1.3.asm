@@ -279,8 +279,8 @@
 ; Standard
 .equ	sfr_pcon0, 0x87						; PCON SFR
 ;.equ	T2CON, 0xC8						; Timer2 control SFR
-;.equ	sfr_rcapl2_8052, 0xCA					; RCAPL2 8052 SFR
-;.equ	sfr_rcaph2_8052, 0xCB					; RCAPH2 8052 SFR
+.equ	sfr_rcapl2_8052, 0xCA					; RCAPL2 8052 SFR
+.equ	sfr_rcaph2_8052, 0xCB					; RCAPH2 8052 SFR
 ;.equ	TL2, 0xCC						; Timer2 low byte SFR
 ;.equ	TH2, 0xCD						; Timer2 high byte SFR
 
