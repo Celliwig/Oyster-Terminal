@@ -224,6 +224,8 @@
 ;	Timer2 compare 2:	0x6b
 ;	Timer2 overflow:	0x73
 ;
+; Timer2 then swapped with 80C562 Timer2
+;
 ; C. Burgoyne 03/2019
 ;*****************************************************************************
 
@@ -270,8 +272,8 @@
 ;***************************************************************
 
 ; This defines the base location of the BASIC interpreter
-;.equ	mcs_basic_locat, 0x8000
-.equ	mcs_basic_locat, 0x0000
+.equ	mcs_basic_locat, 0x8000
+;.equ	mcs_basic_locat, 0x0000
 
 
 ;**************************************************************
@@ -296,7 +298,7 @@
 .equ	DTYPE, 03						; DO-WHILE/UNTIL TYPE
 
 ; RAM definitions
-.equ	sys_stack_top, 0x4D					; SYSTEM STACK POINTER
+.equ	sys_stack_top, 0x70					; SYSTEM STACK POINTER (top of stack for PaulMON)
 .equ	stack_top, 0xFE						; ARG AND CONTROL STACK TOPS
 .equ	iram_top, 0xFF						; TOP OF RAM
 
@@ -323,8 +325,8 @@
 ; Standard
 .equ	sfr_pcon0, 0x87						; PCON SFR
 ;.equ	T2CON, 0xC8						; Timer2 control SFR
-.equ	sfr_rcapl2_8052, 0xCA					; RCAPL2 8052 SFR
-.equ	sfr_rcaph2_8052, 0xCB					; RCAPH2 8052 SFR
+;.equ	sfr_rcapl2_8052, 0xCA					; RCAPL2 8052 SFR
+;.equ	sfr_rcaph2_8052, 0xCB					; RCAPH2 8052 SFR
 ;.equ	TL2, 0xCC						; Timer2 low byte SFR
 ;.equ	TH2, 0xCD						; Timer2 high byte SFR
 
@@ -336,22 +338,40 @@
 ;PROMV         BIT     P1.5					; TURN ON PROM VOLTAGE
 ;*****************************************************************************
 .flag	dma_ack, P1.6						; DMA ACK
-.flag	line_printer, P1.7					; SOFTWARE LINE PRINTER
+;.flag	line_printer, P1.7					; SOFTWARE LINE PRINTER
 .flag	dma_finished, P3.2					; DMA has ended
 
 ; Non standard (BASIC)
-.equ	sfr_s0rell, 0xAA					; sfr_s0rell 805x7A SFR
-.equ	sfr_s0relh, 0xBA					; sfr_s0relh 805x7A SFR
-.equ	sfr_adcon, 0xD8						; sfr_adcon 805xx SFR
-.flag	sfr_baud_bit, 0xd8.7					; Baudrategenerator 805x7,x5
-.equ	sfr_dapr, 0xDA						; sfr_dapr 805xx SFR
+;.equ	sfr_s0rell, 0xAA					; sfr_s0rell 805x7A SFR
+;.equ	sfr_s0relh, 0xBA					; sfr_s0relh 805x7A SFR
+;.equ	sfr_adcon, 0xD8						; sfr_adcon 805xx SFR
+;.flag	sfr_baud_bit, 0xd8.7					; Baudrategenerator 805x7,x5
+;.equ	sfr_dapr, 0xDA						; sfr_dapr 805xx SFR
 
 ; Non standard (80C562)
+.equ	sfr_cml0_80c562, 0xA9					; Timer2 compare L register 0
+.equ	sfr_cml1_80c562, 0xAA					; Timer2 compare L register 1
+.equ	sfr_cml2_80c562, 0xAB					; Timer2 compare L register 2
+.equ	sfr_p4_80c562, 0xC0					; Port 4
+.equ	sfr_p5_80c562, 0xC4					; Port 5
+.equ	sfr_tm2ir_80c562, 0xC8					; Timer2 interrupt flag register
+.equ	sfr_cmh0_80c562, 0xC9					; Timer2 compare H register 0
+.equ	sfr_cmh1_80c562, 0xCA					; Timer2 compare H register 1
+.equ	sfr_cmh2_80c562, 0xCB					; Timer2 compare H register 2
+.equ	sfr_ie2_80c562, 0xE8					; Additional interrupt enable register
 .equ	sfr_t2con_80c562, 0xEA					; Timer2 control SFR
+.equ	sfr_ctcon_80c562, 0xEB					; Timer2 capture control register
 .equ	sfr_tl2_80c562, 0xEC					; Timer2 low byte SFR
 .equ	sfr_th2_80c562, 0xED					; Timer2 high byte SFR
+.equ	sfr_ste_80c562, 0xEE					; Timer2 set enable register
+.equ	sfr_rte_80c562, 0xEF					; Timer2 reset/toggle enable register
+.equ	sfr_ip2_80c562, 0xF8					; Additional interrupt priority register
 .equ	sfr_pwm1_80c562, 0xFD					; PWM1 control
 .equ	sfr_pwmp_80c562, 0xFE					; PWM prescaler
+.equ	sfr_t3_80c562, 0xFF					; Timer3 control
+; bif flags
+.equ	sfrbit_ET2O_80c562, 0xEF				; Timer2 enable overflow interrupt
+.equ	sfrbit_T2OV_80c562, 0xCF				; Timer2 16-bit overflow flag
 
 
 ;**************************************************************
@@ -524,7 +544,7 @@
 .equ	rtc_5_millisec, 0x47					; Real Time Clock 5 millisec.
 .equ	rtc_valh, 0x48						; Real Time Clock high byte
 .equ	rtc_vall, 0x49						; Real Time Clock low byte
-.equ	tmr2_reloadh, 0x4A					; Reload value for 5ms tick
+.equ	tmr2_reload, 0x4A					; Reload value for 5ms tick
 .equ	sp_timeouth, 0x4B					; SERIAL PORT TIME OUT
 .equ	sp_timeoutl, 0x4C
 
@@ -679,11 +699,15 @@ jmp2_clock_tick_handler:
 	PUSH	PSW
 	LJMP	mcs_basic_locat+0x401B
 
+trap_ext1_interrupt:
+	SETB	irq_pend					; TELL BASIC AN INTERRUPT WAS RECEIVED
+	RETI
+
 
 .org	mcs_basic_locat+0x23
 ;***************************************************************
 ;
-; SERIAL PORT INTERRUPT
+; SERIAL PORT (UART) INTERRUPT
 ;
 ;***************************************************************
 	PUSH	PSW
@@ -694,12 +718,14 @@ jmp2_clock_tick_handler:
 .org	mcs_basic_locat+0x2B
 ;**************************************************************
 ;
-; TIMER 2 OVERFLOW INTERRUPT
+; SERIAL PORT (I2C) INTERRUPT
 ;
 ;**************************************************************
-	PUSH	PSW						; SAVE THE STATUS
-	JB	clock_running, jmp2_clock_tick_handler		; SEE IF USER WANTS INTERRUPT
-	LJMP	mcs_basic_locat+0x402B				; EXIT IF USER WANTS INTERRUPTS
+jmp2_ext0_interrupt_handler:
+	LJMP	mcs_basic_locat+0x2040				; GO TO THE MONITOR
+
+jmp2_serial_interrupt_handler:					; Put here as there's no I2C on the 80c562
+	LJMP	mcs_basic_locat+0x2050				; SERIAL PORT INTERRUPT
 
 
 .org	mcs_basic_locat+0x33
@@ -744,6 +770,30 @@ jmp2_clock_tick_handler:
 ;
 ;**************************************************************
 
+.org	mcs_basic_locat+0x63
+;**************************************************************
+;
+; Timer2 compare 1 (80C562)
+;
+;**************************************************************
+
+.org	mcs_basic_locat+0x6B
+;**************************************************************
+;
+; Timer2 compare 2 (80C562)
+;
+;**************************************************************
+
+.org	mcs_basic_locat+0x73
+;**************************************************************
+;
+; Timer2 overflow (80C562)
+;
+;**************************************************************
+	PUSH	PSW						; SAVE THE STATUS
+	JB	clock_running, jmp2_clock_tick_handler		; SEE IF USER WANTS INTERRUPT
+	LJMP	mcs_basic_locat+0x402B				; EXIT IF USER WANTS INTERRUPTS
+
 
 	LJMP	IBLK						; LINK TO USER BLOCK
 
@@ -754,19 +804,6 @@ handle_dma_request:
 	JNB	dma_finished, *					; WAIT FOR DMA TO END
 	SETB	dma_ack
 	RETI
-
-
-jmp2_ext0_interrupt_handler:
-	LJMP	mcs_basic_locat+0x2040				; GO TO THE MONITOR
-
-
-trap_ext1_interrupt:
-	SETB	irq_pend					; TELL BASIC AN INTERRUPT WAS RECEIVED
-	RETI
-
-
-jmp2_serial_interrupt_handler:
-	LJMP	mcs_basic_locat+0x2050				; SERIAL PORT INTERRUPT
 
 
 ;**************************************************************
@@ -1316,11 +1353,21 @@ system_startup:
 ;*****************************************************************************
 
 	MOV	TCON, #0x54					; Timer0/1: running, Ext.1 interrupt: low level
-	MOV	T2CON, #0x04					; Timer2: running
+; Should initialise these registers
+; however there power on value is okay
+;	clr	a
+;	mov	sfr_ie2_80c562, a				; Disable all timer2 interrupts
+;	mov	sfr_ste_80c562, a				; Disable timer2 compare actions
+;	mov	sfr_ctcon_80c562, a				; Disable timer2 capture actions
+;	mov	sfr_rte_80c562, a				; Disable timer2 compare actions
+	mov	sfr_t2con_80c562, #0x81				; Timer2: running, Clk src: fosc/12, Prescaler: 1/1, 16-bit overflow interrupt: enabled
+
+;	MOV	T2CON, #0x04					; Timer2: running (8052)
 ;	DB	75H						; MOV DIRECT, # OP CODE
 ;	DB	0C8H						; T2CON LOCATION
 ;	DB	34H						; CONFIGURATION BYTE
 
+system_startup_restart:
 	MOV	DPTR, #mcs_basic_locat+0x2001			; READ CODE AT mcs_basic_locat+2001H
 	CLR	A
 	MOVC	A, @A+DPTR
@@ -1398,7 +1445,7 @@ system_clear_mem:
 system_check_mem_size:
 	CJNE	R3, #3, system_check_mem_size_cmp		; NEED THIS MUCH RAM
 system_check_mem_size_cmp:
-	JC	system_startup
+	JC	system_startup_restart
 	MOV	DPTR, #MEMTOP					; SAVE MEMTOP
 	ACALL	r3r1_2_dptr_x2					; SAVE MEMTOP AND SEED RCELL
 	ACALL	CNEW						; CLEAR THE MEMORY AND SET UP POINTERS
@@ -1419,19 +1466,6 @@ system_config_serial:
 ;*****************************************************************************
 ;******* New baudrate detection **********************************************
 ;******* Wulf 3 alteration 1 *************************************************
-
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
-	NOP
 
 system_serial_set_baud:
 ;	mov	TH1, r1						; Timer1 set reload rate (baud rate)
@@ -1459,13 +1493,13 @@ system_serial_config:
 ;
 ;system_serial_config:
 ;	clr	a
-;	mov	t2con,a
+;	mov	T2CON,a
 ;	mov	TH2, #0xFF
 ;	mov	TL2, #0xF8
 ;	jb	rxd, *
-;	mov	t2con, #5					; Timer2 start
+;	mov	T2CON, #5					; Timer2 start
 ;	jnb	rxd, *
-;	mov	t2con,a 					; Timer2 stop
+;	mov	T2CON,a 					; Timer2 stop
 ;	jb	rxd, *
 ;	jnb	rxd, *
 ;	lcall	sercalc 					; r3=timer2 MSB default
@@ -1489,7 +1523,7 @@ system_serial_config:
 ;	setb	sfr_baud_bit					; enable baudrategenerator
 ;	sjmp	system_serial_config15
 ;system_serial_config2:
-;	mov	t2con, #0x34					; configure Timer2 as baudrate generator
+;	mov	T2CON, #0x34					; configure Timer2 as baudrate generator
 ;system_serial_config15:
 ;
 ;****** Original code from here **********************************************
@@ -2657,8 +2691,10 @@ ITRAP1:
 ITRAP2:
 	CJNE	A, #TMR2, ITRAP3		; TIMER 2
 ITRAP21:
-	MOV	TH2, R3
-	MOV	TL2, R1
+	MOV	sfr_th2_80c562, R3
+	MOV	sfr_tl2_80c562, R1
+;	MOV	TH2, R3
+;	MOV	TL2, R1
 ;	DB	8BH				; MOV R3 DIRECT OP CODE
 ;	DB	0CDH				; T2H LOCATION
 ;	DB	89H				; MOV R1 DIRECT OP CODE
@@ -2667,8 +2703,10 @@ ITRAP21:
 ITRAP3:
 	CJNE	A, #TRC2, RCL1			; RCAP2 TOKEN
 ;timer2_rcap_load:
-	MOV	sfr_rcaph2_8052, R3
-	MOV	sfr_rcapl2_8052, R1
+	MOV	sfr_cmh0_80c562, R3
+	MOV	sfr_cml0_80c562, R1
+;	MOV	sfr_rcaph2_8052, R3
+;	MOV	sfr_rcapl2_8052, R1
 ;	DB	8BH				; MOV R3 DIRECT OP CODE
 ;	DB	0CBH				; RCAP2H LOCATION
 ;	DB	89H				; MOV R1 DIRECT OP CODE
@@ -2677,7 +2715,8 @@ ITRAP3:
 RCL1:
 	ACALL	R3CK				; MAKE SURE THAT R3 IS ZERO
 	CJNE	A, #TT2C, RCL2
-	MOV	T2CON, R1
+	MOV	sfr_t2con_80c562, R1
+;	MOV	T2CON, R1
 ;	DB	89H				; MOV R1 DIRECT OP CODE
 ;	DB	0C8H				; T2CON LOCATION
 	RET
@@ -3474,7 +3513,7 @@ SM:
 	CJNE	A, #T_CHR, SP8
 	ACALL	IGC
 	CJNE	A, #'$', SM01
-	ACALL	CNX				; PUT THE CHARACTER ON THE STACK
+	aCALL	CNX				; PUT THE CHARACTER ON THE STACK
 	ACALL	IFIXL				; PUT THE CHARACTER IN R1
 	SJMP	SM02
 SM01:
@@ -5378,15 +5417,18 @@ ATIM1:
 	MOV	R0, TL1
 	SJMP	TWO_EY
 ATIM2:
-	MOV	R2, TH2
-	MOV	R0, TL2
+	MOV	R2, sfr_th2_80c562
+	MOV	R0, sfr_tl2_80c562
+;	MOV	R2, TH2
+;	MOV	R0, TL2
 ;	DB	0AAH				; MOV R2 DIRECT OP CODE
 ;	DB	0CDH				; T2 HIGH
 ;	DB	0A8H				; MOV R0 DIRECT OP CODE
 ;	DB	0CCH				; T2 LOW
 	SJMP	TWO_EY				; TIMER 2
 AT2CON:
-	MOV	A, T2CON
+	MOV	A, sfr_t2con_80c562
+;	MOV	A, T2CON
 ;	DB	0E5H				; MOV A,DIRECT OPCODE
 ;	DB	0C8H				; T2CON LOCATION
 	SJMP	TWO_R2
@@ -5397,8 +5439,10 @@ ATMOD:
 	MOV	A, TMOD				; TMOD
 	SJMP	TWO_R2
 ARCAP2:
-	MOV	R2, sfr_rcaph2_8052
-	MOV	R0, sfr_rcapl2_8052
+	MOV	R2, sfr_cmh0_80c562
+	MOV	R0, sfr_cml0_80c562
+;	MOV	R2, sfr_rcaph2_8052
+;	MOV	R0, sfr_rcapl2_8052
 ;	DB	0AAH				; MOV R2, DIRECT OP CODE
 ;	DB	0CBH				; RCAP2H LOCATION
 ;	DB	0A8H				; MOV R0, DIRECT OP CODE
@@ -5806,7 +5850,7 @@ AXTAL1:
 	MOV	A, R1
 	CPL	A
 	INC	A
-	MOV	tmr2_reloadh, A
+	MOV	tmr2_reload, A
 	MOV	R3, #HIGH_CXTAL
 	MOV	R1, #LOW_CXTAL
 	ljmp	POPAS
@@ -6335,8 +6379,11 @@ ER4:
 ;
 ;**************************************************************
 clock_tick_handler:
-	MOV	sfr_rcaph2_8052, tmr2_reloadh			; Set the reload counter
-	MOV	sfr_rcapl2_8052, #0				; Set the reload counter
+	clr	sfrbit_T2OV_80c562				; Reset timer2 overflow flag
+	mov	sfr_tl2_80c562, tmr2_reload			; Reset the lower byte of timer2
+	mov	sfr_th2_80c562, #0xFF				; Set high byte so that there is a full counter rollover for the next interrupt
+;	MOV	sfr_rcaph2_8052, tmr2_reload			; Set the reload counter
+;	MOV	sfr_rcapl2_8052, #0				; Set the reload counter
 	XCH	A, rtc_5_millisec				; SAVE A, GET MILLI COUNTER
 	INC	A						; BUMP COUNTER
 	CJNE	A, #200, clock_tick_handler_finish		; CHECK OUT TIMER VALUE
@@ -6357,7 +6404,8 @@ clock_tick_handler_finish:
 ;**************************************************************
 SCLOCK:
 	ACALL	OTST						; GET CHARACTER AFTER CLOCK TOKEN
-	CLR	ET2
+	clr	sfrbit_ET2O_80c562				; Disable timer2 overflow interrupt
+;	CLR	ET2
 	CLR	clock_running
 	JNC	SCLOCK_finish					; EXIT IF A ZERO
 
@@ -6367,13 +6415,16 @@ SCLOCK:
 ;
 ;	ANL	TMOD, #0F0H					; SET UP THE MODE
 ;
-	anl	T2CON, #0x00					; Reset timer2 to 16-bit counter
+;	anl	T2CON, #0x00					; Reset timer2 to 16-bit counter
 
 ;*****************************************************************************
 
 	SETB	clock_running					; USER INTERRUPTS
-	ORL	IE, #0xA0 					; ENABLE ET2 AND EA
-	SETB	TR2						; TURN ON THE TIMER
+	setb	EA						; Enable interrupts
+	setb	sfrbit_ET2O_80c562				; Enable timer2 overflow interrupts
+	mov	sfr_t2con_80c562, 0x81				; Timer2: running, Clk src: fosc/12, Prescaler: 1/1, 16-bit overflow interrupt: enabled
+;	ORL	IE, #0xA0 					; ENABLE ET2 AND EA
+;	SETB	TR2						; TURN ON THE TIMER
 SCLOCK_finish:
 	RET
 
