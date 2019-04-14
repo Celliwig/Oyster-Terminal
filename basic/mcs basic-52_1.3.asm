@@ -183,6 +183,32 @@
 ; H.-J. Boehling, D. Wulf 11/26/2001
 ;*****************************************************************************
 
+;*****************************************************************************
+; Timer assignment swapped to support 80C562, timer2 cannot be used for baud
+; generation.
+;
+; Original:
+;	Timer0 - RTC
+;	Timer1 - Baud rate generator (line printer)
+;		- PWM
+;		- Programming pulse generation
+;	Timer2 - Baud rate generator
+;
+; Timer0  <->	Timer1
+;
+; Now:
+;	Timer0 - Baud rate generator (line printer)
+;		- PWM
+;		- Programming pulse generation
+;	Timer1 - RTC
+;	Timer2 - Baud rate generator
+;
+; This results in the serial line printer support being disabled, so it's
+; output code has been removed, though command still available.
+;
+; C. Burgoyne 03/2019
+;*****************************************************************************
+
 ;**************************************************************
 ;
 ; TRAP VECTORS TO MONITOR
@@ -471,8 +497,8 @@
 ; Now the stack designators.
 .equ	sp_save, 0x3E						; Save the top of the stack
 .equ	str_length, 0x3F
-.equ	tmr1_reloadh, 0x40
-.equ	tmr1_reloadl, 0x41
+.equ	tmr0_reloadh, 0x40
+.equ	tmr0_reloadl, 0x41
 .equ	save_txt_ptrh, 0x42
 .equ	save_txt_ptrl, 0x43
 .equ	MT1, 0x45
@@ -480,7 +506,7 @@
 .equ	rtc_5_millisec, 0x47					; Real Time Clock 5 millisec.
 .equ	rtc_valh, 0x48						; Real Time Clock high byte
 .equ	rtc_vall, 0x49						; Real Time Clock low byte
-.equ	timer0h_reload, 0x4A					; Reload value for 5ms tick
+.equ	tmr1_reloadh, 0x4A					; Reload value for 5ms tick
 .equ	sp_timeouth, 0x4B					; SERIAL PORT TIME OUT
 .equ	sp_timeoutl, 0x4C
 
@@ -608,9 +634,11 @@
 ; TIMER 0 OVERFLOW INTERRUPT
 ;
 ;***************************************************************
-	PUSH	PSW						; SAVE THE STATUS
-	JB	clock_running, jmp2_clock_tick_handler		; SEE IF USER WANTS INTERRUPT
-	LJMP	mcs_basic_locat+0x400B				; EXIT IF USER WANTS INTERRUPTS
+	PUSH	PSW
+	LJMP	handle_timer0_interrupt
+
+jmp2_clock_tick_handler:
+	LJMP	clock_tick_handler				; DO THE INTERRUPT
 
 
 .org	mcs_basic_locat+0x13
@@ -630,11 +658,9 @@
 ; TIMER 1 OVERFLOW INTERRUPT
 ;
 ;***************************************************************
-	PUSH	PSW
-	LJMP	handle_timer1_interrupt
-
-jmp2_clock_tick_handler:
-	LJMP	clock_tick_handler				; DO THE INTERRUPT
+	PUSH	PSW						; SAVE THE STATUS
+	JB	clock_running, jmp2_clock_tick_handler		; SEE IF USER WANTS INTERRUPT
+	LJMP	mcs_basic_locat+0x401B				; EXIT IF USER WANTS INTERRUPTS
 
 
 .org	mcs_basic_locat+0x23
@@ -1439,7 +1465,7 @@ PG8:
 ;CPROG: MOV	DPTR,#PROGS			;LOAD PROG LOCATION
 ;	CLR	INTELB
 ;	;
-;CPROG1: ACALL	LD_T				;LOAD THE TIMER
+;CPROG1: ACALL	timer0_set_reload_value				;LOAD THE TIMER
 ;	CLR	PROMV				;TURN ON THE PROM VOLTAGE
 ;	CALL	DELTST				;SEE IF A CR
 ;	JNZ	PG8				;SAVE TIMER IF SO
@@ -1517,7 +1543,7 @@ PG8:
 ;	NOP
 ;	ACALL	PG11				;DELAY A WHILE
 ;	CLR	PROMP				;START PROGRAMMING
-;	ACALL	TIMER_LOAD			;START THE TIMER
+;	ACALL	timer0_reload_run			;START THE TIMER
 ;	JNB	TF1,$				;WAIT FOR PART TO PROGRAM
 ;	RET					;EXIT
 ;
@@ -1553,7 +1579,7 @@ PG8:
 CPROG:
 	MOV	DPTR, #PROGS			; LOAD PROG LOCATION
 CPROG1:
-	ACALL	LD_T				; LOAD THE TIMER
+	ACALL	timer0_set_reload_value				; LOAD THE TIMER
 	lcall	DELTST				; SEE IF A CR
 	JNZ	PG8				; SAVE TIMER IF SO
 	MOV	R4, #0xFE
@@ -1616,7 +1642,7 @@ ZRO:
 	NOP
 	MOV	tmp_reg5, #12			; DELAY 30uS AT 12 MHZ
 	DJNZ	tmp_reg5, *
-	ACALL	TIMER_LOAD			; START THE TIMER
+	ACALL	timer0_reload_run			; START THE TIMER
 	JNB	TF1, *				; WAIT FOR PART TO PROGRAM
 	movx	A, @DPTR 			; Read back for error detect
 	xrl	A,R4				; Test for error
@@ -1644,7 +1670,7 @@ CERASE:
 	mov	R2, #HIGH_ROMADDR-1		; Startaddress EEPROM
 	mov	R0, #LOW_ROMADDR-1
 	mov	DPTR, #PROGS			; Point to EEPROM timeing
-	acall	LD_T				; Load the timer
+	acall	timer0_set_reload_value				; Load the timer
 
 ERA1:
 	lcall	INC3210 			; Bump pointers
@@ -1686,14 +1712,14 @@ CCAL1:
 ; Load the timer
 ;
 ;*************************************************************
-TIMER_LOAD:
+timer0_reload_run:
 	ACALL	CCAL1				; DELAY FOUR CLOCKS
-TIMER_LOAD1:
-	CLR	TR1				; STOP IT WHILE IT'S LOADED
-	MOV	TH1, tmr1_reloadh
-	MOV	TL1, tmr1_reloadl
-	CLR	TF1				; CLEAR THE OVERFLOW FLAG
-	SETB	TR1				; START IT NOW
+timer0_reload_run1:
+	CLR	TR0				; STOP IT WHILE IT'S LOADED
+	MOV	TH0, tmr0_reloadh
+	MOV	TL0, tmr0_reloadl
+	CLR	TF0				; CLEAR THE OVERFLOW FLAG
+	SETB	TR0				; START IT NOW
 	RET
 
 ;***************************************************************
@@ -1778,12 +1804,12 @@ X31DP:
 ; pointing to.
 ;
 ;****************************************************************
-LD_T:
+timer0_set_reload_value:
 	MOVX	A, @DPTR
-	MOV	tmr1_reloadh, A
+	MOV	tmr0_reloadh, A
 	INC	DPTR
 	MOVX	A, @DPTR
-	MOV	tmr1_reloadl, A
+	MOV	tmr0_reloadl, A
 	RET
 
 
@@ -2224,6 +2250,41 @@ ptime:	.db	128-3				; New programmer timer value is old value
 
 ;*****************************************************************************
 
+; NOPs added to realign page boundaries
+; having remove code from TEROT
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+
 ;***************************************************************
 ;
 ; TEROT - Output a character to the system console
@@ -2255,25 +2316,25 @@ TEROT04:
 	LCALL	mcs_basic_locat+0x403C		; CALL AT LOCATION
 	AJMP	TEROT1				; FINISH OFF OUTPUT
 T_1:
-	JNB	con_out, TXX 			; SEE IF LIST SET
-	MOV	DPTR, #SPV			; LOAD BAUD RATE
-	ACALL	LD_T
-	CLR	line_printer			; OUTPUT START BIT
-	ACALL	TIMER_LOAD			; LOAD AND START THE TIMER
-	MOV	A, R5				; GET THE OUTPUT BYTE
-	SETB	C				; SET CARRY FOR LAST OUTPUT
-	MOV	R5, #9				; LOAD TIMER COUNTDOWN
-LTOUT1:
-	RRC	A				; ROTATE A
-	JNB	TF1, *				; WAIT TILL TIMER READY
-	MOV	line_printer, C			; OUTPUT THE BIT
-	ACALL	TIMER_LOAD			; DO THE NEXT BIT
-	DJNZ	R5, LTOUT1			; LOOP UNTIL DONE
-	JNB	TF1, *				; FIRST STOP BIT
-	ACALL	TIMER_LOAD
-	JNB	TF1, *				; SECOND STOP BIT
-	MOV	R5, A				; RESTORE R5
-	SJMP	TEROT1				; BACK TO TEROT
+;	JNB	con_out, TXX 			; SEE IF LIST SET
+;	MOV	DPTR, #SPV			; LOAD BAUD RATE
+;	ACALL	timer0_set_reload_value
+;	CLR	line_printer			; OUTPUT START BIT
+;	ACALL	timer0_reload_run			; LOAD AND START THE TIMER
+;	MOV	A, R5				; GET THE OUTPUT BYTE
+;	SETB	C				; SET CARRY FOR LAST OUTPUT
+;	MOV	R5, #9				; LOAD TIMER COUNTDOWN
+;LTOUT1:
+;	RRC	A				; ROTATE A
+;	JNB	TF1, *				; WAIT TILL TIMER READY
+;	MOV	line_printer, C			; OUTPUT THE BIT
+;	ACALL	timer0_reload_run			; DO THE NEXT BIT
+;	DJNZ	R5, LTOUT1			; LOOP UNTIL DONE
+;	JNB	TF1, *				; FIRST STOP BIT
+;	ACALL	timer0_reload_run
+;	JNB	TF1, *				; SECOND STOP BIT
+;	MOV	R5, A				; RESTORE R5
+;	SJMP	TEROT1				; BACK TO TEROT
 TXX:
 	JNB	TI, *				; WAIT FOR TRANSMIT READY
 	CLR	TI
@@ -3704,8 +3765,8 @@ S_C_1:
 THREE:
 	ACALL	ONE				; GET THE FIRST INTEGER
 	lcall	CBIAS				; BIAS FOR TIMER LOAD
-	MOV	tmr1_reloadh, R3
-	MOV	tmr1_reloadl, R1
+	MOV	tmr0_reloadh, R3
+	MOV	tmr0_reloadl, R1
 	MOV	R7, #','         		; WASTE A COMMA
 	ACALL	EATC				; FALL THRU TO TWO
 
@@ -5671,7 +5732,7 @@ AXTAL1:
 	MOV	A, R1
 	CPL	A
 	INC	A
-	MOV	timer0h_reload, A
+	MOV	tmr1_reloadh, A
 	MOV	R3, #HIGH_CXTAL
 	MOV	R1, #LOW_CXTAL
 	ljmp	POPAS
@@ -5694,22 +5755,22 @@ CBIAS:						; Bias the crystal calculations
 ;
 ;**************************************************************
 STONE:
-	lcall	THREE				; GET THE NUMBERS
-	ACALL	CBIAS				; BIAS R3:R1 FOR COUNT LOOP
+	lcall	THREE						; GET THE NUMBERS
+	ACALL	CBIAS						; BIAS R3:R1 FOR COUNT LOOP
 STONE1:
-	CLR	io_toggle_bit			; TOGGLE THE BIT
-	CLR	TR1				; STOP THE TIMER
-	MOV	TH1, R3				; LOAD THE TIMER
-	MOV	TL1, R1
-	CLR	TF1				; CLEAR THE OVERFLOW FLAG
-	SETB	TR1				; TURN IT ON
+	CLR	io_toggle_bit					; TOGGLE THE BIT
+	CLR	TR0						; STOP THE TIMER
+	MOV	TH0, R3						; LOAD THE TIMER
+	MOV	TL0, R1
+	CLR	TF0						; CLEAR THE OVERFLOW FLAG
+	SETB	TR0						; TURN IT ON
 	ACALL	DEC76
-	JNB	TF1, *				; WAIT
+	JNB	TF0, *						; WAIT
 	ACALL	ALPAR
-	SETB	io_toggle_bit			; BACK TO A ONE
-	lcall	TIMER_LOAD1			; LOAD THE HIGH VALUE
-	JNB	TF1, *				; WAIT
-	JNZ	STONE1				; LOOP
+	SETB	io_toggle_bit					; BACK TO A ONE
+	lcall	timer0_reload_run1				; LOAD THE HIGH VALUE
+	JNB	TF0, *						; WAIT
+	JNZ	STONE1						; LOOP
 	RET
 
 ;LNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLNLN
@@ -6200,7 +6261,7 @@ ER4:
 ;
 ;**************************************************************
 clock_tick_handler:
-	MOV	TH0, timer0h_reload				; LOAD THE TIMER
+	MOV	TH1, tmr1_reloadh				; LOAD THE TIMER
 	XCH	A, rtc_5_millisec				; SAVE A, GET MILLI COUNTER
 	INC	A						; BUMP COUNTER
 	CJNE	A, #200, clock_tick_handler_finish		; CHECK OUT TIMER VALUE
@@ -6221,9 +6282,9 @@ clock_tick_handler_finish:
 ;**************************************************************
 SCLOCK:
 	ACALL	OTST						; GET CHARACTER AFTER CLOCK TOKEN
-	CLR	ET0
+	CLR	ET1
 	CLR	clock_running
-	JNC	SC_R						; EXIT IF A ZERO
+	JNC	SCLOCK_finish					; EXIT IF A ZERO
 
 ;*****************************************************************************
 ;****** Use XTAL up to 47 MHz ************************************************
@@ -6231,15 +6292,15 @@ SCLOCK:
 ;
 ;	ANL	TMOD, #0F0H					; SET UP THE MODE
 ;
-	anl	TMOD, #0xF1					; Set up 16 bit mode for timer 0
-	orl	TMOD, #0x01
-;
+	anl	TMOD, #0x1F					; Set up 16 bit mode for timer 1
+	orl	TMOD, #0x10
+
 ;*****************************************************************************
 
 	SETB	clock_running					; USER INTERRUPTS
-	ORL	IE, #0x82 					; ENABLE ET0 AND EA
-	SETB	TR0						; TURN ON THE TIMER
-SC_R:
+	ORL	IE, #0x88 					; ENABLE ET1 AND EA
+	SETB	TR1						; TURN ON THE TIMER
+SCLOCK_finish:
 	RET
 
 
@@ -7942,10 +8003,10 @@ SERCALC:
 ;*****************************************************************************
 
 .org	mcs_basic_locat+0x1F78
-handle_timer1_interrupt:
-	JB	pwm_irq, jmp2_timer1_interrupt_handler
-	LJMP	mcs_basic_locat+0x401B
-jmp2_timer1_interrupt_handler:
+handle_timer0_interrupt:
+	JB	pwm_irq, jmp2_timer0_interrupt_handler
+	LJMP	mcs_basic_locat+0x400B
+jmp2_timer0_interrupt_handler:
 	LJMP	mcs_basic_locat+0x2088
 str_no_data:
 	.db	"NO DATA\""
