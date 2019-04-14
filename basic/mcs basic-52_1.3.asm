@@ -195,16 +195,34 @@
 ;	Timer2 - Baud rate generator
 ;
 ; Timer0  <->	Timer1
+; Timer1  <->	Timer2
 ;
 ; Now:
 ;	Timer0 - Baud rate generator (line printer)
 ;		- PWM
 ;		- Programming pulse generation
-;	Timer1 - RTC
-;	Timer2 - Baud rate generator
+;	Timer1 - Baud rate generator
+;	Timer2 - RTC
 ;
 ; This results in the serial line printer support being disabled, so it's
 ; output code has been removed, though command still available.
+;
+; 80C562 interrupt vector addresses:
+;	External interrupt 0:	0x03
+;	Timer0 overflow:	0x0b
+;	External interrupt 1:	0x13
+;	Timer1 overflow:	0x1b
+;	SIO0 (UART):		0x23
+;	SIO1 (I2C):		0x2b
+;	Timer2 capture 0:	0x33
+;	Timer2 capture 1:	0x3b
+;	Timer2 capture 2:	0x43
+;	Timer2 capture 3:	0x4b
+;	ADC completion:		0x53
+;	Timer2 compare 0:	0x5b
+;	Timer2 compare 1:	0x63
+;	Timer2 compare 2:	0x6b
+;	Timer2 overflow:	0x73
 ;
 ; C. Burgoyne 03/2019
 ;*****************************************************************************
@@ -506,7 +524,7 @@
 .equ	rtc_5_millisec, 0x47					; Real Time Clock 5 millisec.
 .equ	rtc_valh, 0x48						; Real Time Clock high byte
 .equ	rtc_vall, 0x49						; Real Time Clock low byte
-.equ	tmr1_reloadh, 0x4A					; Reload value for 5ms tick
+.equ	tmr2_reloadh, 0x4A					; Reload value for 5ms tick
 .equ	sp_timeouth, 0x4B					; SERIAL PORT TIME OUT
 .equ	sp_timeoutl, 0x4C
 
@@ -658,9 +676,8 @@ jmp2_clock_tick_handler:
 ; TIMER 1 OVERFLOW INTERRUPT
 ;
 ;***************************************************************
-	PUSH	PSW						; SAVE THE STATUS
-	JB	clock_running, jmp2_clock_tick_handler		; SEE IF USER WANTS INTERRUPT
-	LJMP	mcs_basic_locat+0x401B				; EXIT IF USER WANTS INTERRUPTS
+	PUSH	PSW
+	LJMP	mcs_basic_locat+0x401B
 
 
 .org	mcs_basic_locat+0x23
@@ -680,16 +697,54 @@ jmp2_clock_tick_handler:
 ; TIMER 2 OVERFLOW INTERRUPT
 ;
 ;**************************************************************
-	PUSH	PSW
-	LJMP	mcs_basic_locat+0x402B
+	PUSH	PSW						; SAVE THE STATUS
+	JB	clock_running, jmp2_clock_tick_handler		; SEE IF USER WANTS INTERRUPT
+	LJMP	mcs_basic_locat+0x402B				; EXIT IF USER WANTS INTERRUPTS
 
 
-.org	mcs_basic_locat+0x30
+.org	mcs_basic_locat+0x33
 ;**************************************************************
 ;
-; USER ENTRY
+; Timer2 capture 0 (80C562)
 ;
 ;**************************************************************
+
+.org	mcs_basic_locat+0x3B
+;**************************************************************
+;
+; Timer2 capture 1 (80C562)
+;
+;**************************************************************
+
+.org	mcs_basic_locat+0x43
+;**************************************************************
+;
+; Timer2 capture 2 (80C562)
+;
+;**************************************************************
+
+.org	mcs_basic_locat+0x4B
+;**************************************************************
+;
+; Timer2 capture 3 (80C562)
+;
+;**************************************************************
+
+.org	mcs_basic_locat+0x53
+;**************************************************************
+;
+; ADC completion (80C562)
+;
+;**************************************************************
+
+.org	mcs_basic_locat+0x5B
+;**************************************************************
+;
+; Timer2 compare 0 (80C562)
+;
+;**************************************************************
+
+
 	LJMP	IBLK						; LINK TO USER BLOCK
 
 
@@ -1248,6 +1303,7 @@ str_cstack:		.db	"C-STACK\""
 system_startup:
 	; First, initialize SFR's
 	MOV	SCON, #0x5A					; Mode 1, Receive enabled, TB8, TI
+	orl	pcon, #0x80					; Double baud rate
 
 ;*****************************************************************************
 ;****** Use XTAL up to 47 MHz ************************************************
@@ -1255,12 +1311,12 @@ system_startup:
 ;
 ;	MOV	TMOD,#10H
 ;
-	mov	TMOD, #0x11					; Use 16 bit mode of timer 1/timer 0
+	mov	TMOD, #0x21					; Timer0: 16-bit counter, Timer1: 8-bit auto-reload
 
 ;*****************************************************************************
 
 	MOV	TCON, #0x54					; Timer0/1: running, Ext.1 interrupt: low level
-	MOV	T2CON, #0x34					; Timer2: RCLK/TCLK, Timer2: running
+	MOV	T2CON, #0x04					; Timer2: running
 ;	DB	75H						; MOV DIRECT, # OP CODE
 ;	DB	0C8H						; T2CON LOCATION
 ;	DB	34H						; CONFIGURATION BYTE
@@ -1298,7 +1354,7 @@ system_startup2:
 	MOV	R7, A						; SAVE IT IN R7
 	INC	DPTR
 	ACALL	dptr_2_r3r1					; SAVE BAUD RATE FROM ROM
-	LCALL	timer2_rcap_load
+	LCALL	system_serial_set_baud
 	INC	DPTR						; GET MEMTOP FROM ROM
 	ACALL	dptr_2_r3r1
 	MOV	DPTR, #0x5F					; READ THE EXTERNAL BYTE
@@ -1363,8 +1419,26 @@ system_config_serial:
 ;*****************************************************************************
 ;******* New baudrate detection **********************************************
 ;******* Wulf 3 alteration 1 *************************************************
-;
-;system_serial_config:
+
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+
+system_serial_set_baud:
+;	mov	TH1, r1						; Timer1 set reload rate (baud rate)
+	mov	TH1, #252					; Timer1 set reload rate (baud rate)
+	ret
+
+system_serial_config:
 ;	CLR	 A						; DO BAUD RATE
 ;	MOV	 R3, A
 ;	MOV	 R1, A
@@ -1375,52 +1449,52 @@ system_config_serial:
 ;	DJNZ	 R0, *						; FOUR CLOCKS, IN LOOP
 ;	lCALL	 DEC3211					; NINE CLOCKS
 ;	MOV	 R0, #2						; ONE CLOCK
-;	JNB	 RXD, BG2					; TWO CLOCKS, LOOP UNTIL DONE
+;	JNB	 RXD, system_serial_config2			; TWO CLOCKS, LOOP UNTIL DONE
 ;	JB	 RXD, *						; WAIT FOR STOP CHARACTER TO END
 ;	JNB	 RXD, *
-;
+
 ;*****************************************************************************
 ;******* New processor type detection ****************************************
 ;******* Wulf 4 **************************************************************
-
-system_serial_config:
-	clr	a
-	mov	t2con,a
-	mov	TH2, #0xFF
-	mov	TL2, #0xF8
-	jb	rxd, *
-	mov	t2con, #5					; Timer2 start
-	jnb	rxd, *
-	mov	t2con,a 					; Timer2 stop
-	jb	rxd, *
-	jnb	rxd, *
-	lcall	sercalc 					; r3=timer2 MSB default
-
-	cjne	a, sfr_adcon, system_serial_config10		; jump if A/D processor like 805x5
-system_serial_config14:
-	mov	a, sfr_s0rell
-	cjne	a, #baud_9600, system_serial_config2		; jump if not 805x7A
-	mov	a, r3
-	anl	sfr_s0relh, a
-	mov	sfr_s0rell, r1					; start Baudratetimer 805X7A
-	sjmp	system_serial_config11
-system_serial_config10:
-	cjne	r1, #baud_9600, system_serial_config12		; jump if wrong fast baud rate
-system_serial_config11:
-	orl	sfr_pcon0, #0x80				; setb smod for fast mode
-	sjmp	system_serial_config13
-system_serial_config12:
-	cjne	r1, #baud_4800, system_serial_config14		; jump if wrong slow baudrate
-system_serial_config13:
-	setb	sfr_baud_bit					; enable baudrategenerator
-	sjmp	system_serial_config15
-system_serial_config2:
-	mov	t2con, #0x34					; configure Timer2 as baudrate generator
-system_serial_config15:
-
+;
+;system_serial_config:
+;	clr	a
+;	mov	t2con,a
+;	mov	TH2, #0xFF
+;	mov	TL2, #0xF8
+;	jb	rxd, *
+;	mov	t2con, #5					; Timer2 start
+;	jnb	rxd, *
+;	mov	t2con,a 					; Timer2 stop
+;	jb	rxd, *
+;	jnb	rxd, *
+;	lcall	sercalc 					; r3=timer2 MSB default
+;
+;	cjne	a, sfr_adcon, system_serial_config10		; jump if A/D processor like 805x5
+;system_serial_config14:
+;	mov	a, sfr_s0rell
+;	cjne	a, #baud_9600, system_serial_config2		; jump if not 805x7A
+;	mov	a, r3
+;	anl	sfr_s0relh, a
+;	mov	sfr_s0rell, r1					; start Baudratetimer 805X7A
+;	sjmp	system_serial_config11
+;system_serial_config10:
+;	cjne	r1, #baud_9600, system_serial_config12		; jump if wrong fast baud rate
+;system_serial_config11:
+;	orl	sfr_pcon0, #0x80				; setb smod for fast mode
+;	sjmp	system_serial_config13
+;system_serial_config12:
+;	cjne	r1, #baud_4800, system_serial_config14		; jump if wrong slow baudrate
+;system_serial_config13:
+;	setb	sfr_baud_bit					; enable baudrategenerator
+;	sjmp	system_serial_config15
+;system_serial_config2:
+;	mov	t2con, #0x34					; configure Timer2 as baudrate generator
+;system_serial_config15:
+;
 ;****** Original code from here **********************************************
 
-	lcall	timer2_rcap_load					; LOAD THE TIMER
+	acall	system_serial_set_baud
 
 system_start_basic:
 	MOV	DPTR, #str_ident				; GET THE MESSAGE
@@ -1439,11 +1513,11 @@ PG8:
 	MOV	R0, #LOW_ROMADDR-1		; LOAD PROM ADDRESS
 	ACALL	PG101
 	INC	R6
-	MOV	A, sfr_rcaph2_8052
+	MOV	A, #0xff			; Save baud rate (this value is unneeded, kept for compatability)
 ;	DB	0E5H				; MOV A DIRECT OP CODE
 ;	DB	0CBH				; ADDRESS OF R2CAP HIGH
 	ACALL	PG101
-	MOV	A, sfr_rcapl2_8052
+	MOV	A, TH1				; Save baud rate (reload value)
 ;	DB	0E5H				; MOV A, DIRECT OP CODE
 ;	DB	0CAH				; R2CAP LOW
 	MOV	R6, #3
@@ -2592,7 +2666,7 @@ ITRAP21:
 	RET
 ITRAP3:
 	CJNE	A, #TRC2, RCL1			; RCAP2 TOKEN
-timer2_rcap_load:
+;timer2_rcap_load:
 	MOV	sfr_rcaph2_8052, R3
 	MOV	sfr_rcapl2_8052, R1
 ;	DB	8BH				; MOV R3 DIRECT OP CODE
@@ -4154,7 +4228,7 @@ CONST:
 	aCALL	IGC				; GET THE CHARACTER AFTER TOKEN
 	CJNE	A, #'$', CN0      		; SEE IF A STRING
 CNX:
-	aCALL	CSY				; CALCULATE IT
+	lCALL	CSY				; CALCULATE IT
 	ljmp	AXBYTE1 			; SAVE IT ON THE STACK
 
 ;;*****************************************************************************
@@ -5732,7 +5806,7 @@ AXTAL1:
 	MOV	A, R1
 	CPL	A
 	INC	A
-	MOV	tmr1_reloadh, A
+	MOV	tmr2_reloadh, A
 	MOV	R3, #HIGH_CXTAL
 	MOV	R1, #LOW_CXTAL
 	ljmp	POPAS
@@ -6261,7 +6335,8 @@ ER4:
 ;
 ;**************************************************************
 clock_tick_handler:
-	MOV	TH1, tmr1_reloadh				; LOAD THE TIMER
+	MOV	sfr_rcaph2_8052, tmr2_reloadh			; Set the reload counter
+	MOV	sfr_rcapl2_8052, #0				; Set the reload counter
 	XCH	A, rtc_5_millisec				; SAVE A, GET MILLI COUNTER
 	INC	A						; BUMP COUNTER
 	CJNE	A, #200, clock_tick_handler_finish		; CHECK OUT TIMER VALUE
@@ -6282,7 +6357,7 @@ clock_tick_handler_finish:
 ;**************************************************************
 SCLOCK:
 	ACALL	OTST						; GET CHARACTER AFTER CLOCK TOKEN
-	CLR	ET1
+	CLR	ET2
 	CLR	clock_running
 	JNC	SCLOCK_finish					; EXIT IF A ZERO
 
@@ -6292,14 +6367,13 @@ SCLOCK:
 ;
 ;	ANL	TMOD, #0F0H					; SET UP THE MODE
 ;
-	anl	TMOD, #0x1F					; Set up 16 bit mode for timer 1
-	orl	TMOD, #0x10
+	anl	T2CON, #0x00					; Reset timer2 to 16-bit counter
 
 ;*****************************************************************************
 
 	SETB	clock_running					; USER INTERRUPTS
-	ORL	IE, #0x88 					; ENABLE ET1 AND EA
-	SETB	TR1						; TURN ON THE TIMER
+	ORL	IE, #0xA0 					; ENABLE ET2 AND EA
+	SETB	TR2						; TURN ON THE TIMER
 SCLOCK_finish:
 	RET
 
@@ -7980,26 +8054,26 @@ HOUTLO:
 ;******* New baudrate detection **********************************************
 ;******* calculate r3:r1=-(Timer2 DIV 16) for serial mode ********************
 ;******* Wulf 3 alteration 2 *************************************************
-
-SERCALC:
-	mov	a, #0xF0
-	mov	r3, a
-	mov	r1, TH2
-	anl	a, r1
-	swap	a
-	cpl	a
-	xch	a, r3
-	anl	a, TL2
-	xch	a, r1
-	anl	a, #0x0F
-	orl	a, r1
-	swap	a
-	cpl	a
-	mov	r1, sfr_adcon					; save BSY bit
-	mov	sfr_dapr, #0 					; start A/D for 805xx test
-	xch	a, r1
-	ret
-
+;
+;SERCALC:
+;	mov	a, #0xF0
+;	mov	r3, a
+;	mov	r1, TH2
+;	anl	a, r1
+;	swap	a
+;	cpl	a
+;	xch	a, r3
+;	anl	a, TL2
+;	xch	a, r1
+;	anl	a, #0x0F
+;	orl	a, r1
+;	swap	a
+;	cpl	a
+;	mov	r1, sfr_adcon					; save BSY bit
+;	mov	sfr_dapr, #0 					; start A/D for 805xx test
+;	xch	a, r1
+;	ret
+;
 ;*****************************************************************************
 
 .org	mcs_basic_locat+0x1F78
