@@ -1731,6 +1731,25 @@ battery_check_status:
 battery_check_status_finish:
 	ret
 
+
+; # serial_mainport_enable
+; #
+; # Enables the main serial port (P1) receivers
+; ##########################################################################
+serial_mainport_enable:
+	setb	sfr_p4_80c562.7
+	ret
+
+
+; # serial_mainport_disable
+; #
+; # Disables the main serial port (P1) receivers
+; ##########################################################################
+serial_mainport_disable:
+	clr	sfr_p4_80c562.7
+	ret
+
+
 ; ###############################################################################################################
 ; #                                                     General data
 ; ###############################################################################################################
@@ -2345,6 +2364,7 @@ system_init:
 	mov	sfr_pwm1_80c562, #0						; PWM1 is connected to the piezo speaker
 	orl	pcon, #10h							; Set condition to load watchdog timer
 	mov	sfr_t3_80c562, #0						; Load watchdog timer
+	lcall	serial_mainport_enable						; Make sure main serial port enabled
 ; i2c config
 	setb	p1.6								; SCL
 	setb	p1.7								; SDA
