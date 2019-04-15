@@ -11,7 +11,7 @@ U34 (24 Rx) -
 5 - C2+					14 - Rin1 - P1 (3 - RXD)
 6 - C2-					13 - Rout1 - 
 7 - V-					12 - Din1 - U34 (25 Tx)
-8 - Dout2 - 				11 - Din2 - 
+8 - Dout2 - P1 (20 - DTR)		11 - Din2 - U34 (28 - P3.4)
 9 - Rin2 - P1 (5 - CTS)			10 - Rout2 - 
 
 

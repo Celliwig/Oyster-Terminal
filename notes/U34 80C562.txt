@@ -25,14 +25,14 @@ Crystal: 7.3728 MHz
 21 - P1.5 - U13 i2c expander interrupt
 22 - P1.6 - SCL - U3|U4 RTC / U13 Bus expander (keyboard?)
 23 - P1.7 - SDA - 		"
-24 - 
-25 - 
-26 - 
-27 - 
-28 - 
-29 - 
-30 - 
-31 - 
+24 - P3.0 (Serial Rx)
+25 - P3.1 (Serial Tx)
+26 - P3.2 - 
+27 - P3.3 - 
+28 - P3.4 - Serial DTR
+29 - P3.5 - 
+30 - P3.6 (!WR)
+31 - P3.7 (!RD)
 32 - N/C
 33 - N/C
 34 - XTAL2
@@ -40,17 +40,17 @@ Crystal: 7.3728 MHz
 36 - Vss GND
 37 - Vss GND
 38 - N/C
-39 - 
-40 - 
-41 - 
-42 - 
-43 - P2.4 - LCD CSB
-44 - P2.5 - LCD CSA
-45 - P2.6 - LCD D/I
-46 - 
-47 - 
-48 - 
-49 - 
+39 - A08
+40 - A09
+41 - A10
+42 - A11
+43 - A12 - LCD CSB
+44 - A13 - LCD CSA
+45 - A14 - LCD D/I
+46 - A15 - Memory page select logic
+47 - !PSEN (Program Store Enable)
+48 - ALE (Address Latch Enable)
+49 - !EA (External Access)
 50 - P0.7 - LCD DB7
 51 - P0.6 - LCD DB6
 52 - P0.5 - LCD DB5 / U19 (Keyboard matrix)
