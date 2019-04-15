@@ -4,18 +4,18 @@ Crystal: 7.3728 MHz
 
 1 - 
 2 - Vdd
-3 - STARTADC - J2 (2) -> Keyboard (Blank key)
+3 - STARTADC - 
 4 - 
 5 - PWM1 - Piezo Buzzer
 6 - EW - Vdd - Watchdog timer disabled
-7 - 
-8 - 
-9 - 
-10 - 
-11 - 
-12 - 
-13 - 
-14 - 
+7 - P4.0 - J7 -> R21 -> Q15 -> ???
+8 - P4.1 - U19 (33) SRAM card write protect
+9 - P4.2 - U19 (62) SRAM card battery voltage detect 2
+10 - P4.3 - U19 (63) SRAM card battery voltage detect 1
+11 - P4.4 - U2 (8) MAX713 !FASTCHG (low when device is fast charging batteries)
+12 - P4.5 - 
+13 - P4.6 - 
+14 - P4.7 - U1 (18) MAX222 !SHDN (driven low, all receivers disabled)
 15 - RST
 16 - 
 17 - 
