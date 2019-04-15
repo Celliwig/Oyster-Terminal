@@ -133,6 +133,8 @@ memory_lib:
 	ajmp	memory_set_mode_psen						; 0x04
 	ajmp	memory_set_mode_rdwr						; 0x06
 	ajmp	memory_ramcard_present						; 0x08
+	ajmp	memory_ramcard_battery_check_status_warn			; 0x0a
+	ajmp	memory_ramcard_battery_check_status_fail			; 0x0c
 ; i2c library functions
 i2c_lib:
 	ajmp	i2c_start							; 0x00
@@ -493,17 +495,31 @@ memory_ramcard_write_protect_finish:
 	ret
 
 
-; # memory_ramcard_battery_check_status
+; # memory_ramcard_battery_check_status_warn
+; #
+; # Returns a simple okay/warning for memory card battery
+; # Out:
+; #   Carry - battery status
+; ##########################################################################
+memory_ramcard_battery_check_status_warn:
+	clr	c								; SRAM card battery warning
+	jnb	sfr_p4_80c562.2, memory_ramcard_battery_check_status_warn_finish
+	setb	c								; SRAM card battery okay
+memory_ramcard_battery_check_status_warn_finish:
+	ret
+
+
+; # memory_ramcard_battery_check_status_fail
 ; #
 ; # Returns a simple okay/fail for memory card battery
 ; # Out:
 ; #   Carry - battery status
 ; ##########################################################################
-memory_ramcard_battery_check_status:
+memory_ramcard_battery_check_status_fail:
 	clr	c								; SRAM card battery failure
-	jnb	sfr_p4_80c562.2, memory_ramcard_battery_check_status_finish
+	jnb	sfr_p4_80c562.3, memory_ramcard_battery_check_status_fail_finish
 	setb	c								; SRAM card battery okay
-memory_ramcard_battery_check_status_finish:
+memory_ramcard_battery_check_status_fail_finish:
 	ret
 
 
@@ -2284,7 +2300,7 @@ system_setup_mcard_battery:
 	lcall	cout
 	mov	dptr, #str_battery
 	lcall	pstr
-	lcall	memory_ramcard_battery_check_status
+	lcall	memory_ramcard_battery_check_status_warn
 	mov	dptr, #str_fail
 	jnc	system_setup_mcard_battery_print_status
 	mov	dptr, #str_okay
