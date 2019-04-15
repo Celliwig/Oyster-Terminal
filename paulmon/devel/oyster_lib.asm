@@ -176,6 +176,13 @@ lcd_lib:
 	ajmp	lcd_set_backlight_off						; 0x12
 	ajmp	lcd_set_contrast_inc						; 0x14
 	ajmp	lcd_set_contrast_dec						; 0x16
+; serial library functions
+serial_lib:
+	ajmp	serial_mainport_enable						; 0x00
+	ajmp	serial_mainport_disable						; 0x02
+	ajmp	serial_baudsave_check						; 0x04
+	ajmp	serial_baudsave_set_reload					; 0x06
+	ajmp	serial_baudsave_set						; 0x08
 ; misc library functions
 misc_lib:
 	ajmp	piezo_beep							; 0x00
@@ -1588,6 +1595,78 @@ lcd_set_contrast_finish:
 
 
 ; ###############################################################################################################
+; #                                                   Serial functions
+; ###############################################################################################################
+
+
+; # serial_mainport_enable
+; #
+; # Enables the main serial port (P1) receivers
+; ##########################################################################
+serial_mainport_enable:
+	setb	sfr_p4_80c562.7
+	ret
+
+
+; # serial_mainport_disable
+; #
+; # Disables the main serial port (P1) receivers
+; ##########################################################################
+serial_mainport_disable:
+	clr	sfr_p4_80c562.7
+	ret
+
+
+; # serial_baudsave_check
+; #
+; # Check whether PaulMON 'baud save' structure exists
+; # Out:
+; #  Carry - set if baud bytes exist
+; ##########################################################################
+serial_baudsave_check:
+	clr	c
+	mov	a, baud_save+3							; Get the current baud rate, if it exists
+	xrl	baud_save+2, #01010101b
+	cjne	a, baud_save+2, serial_baudsave_check_finish
+	xrl	baud_save+2, #01010101b						; Redo XOR
+	xrl	baud_save+1, #11001100b
+	cjne	a, baud_save+1, serial_baudsave_check_finish
+	xrl	baud_save+1, #11001100b						; Redo XOR
+	xrl	baud_save+0, #00011101b
+	cjne	a, baud_save+0, serial_baudsave_check_finish
+	xrl	baud_save+0, #00011101b						; Redo XOR
+	setb	c
+serial_baudsave_check_finish:
+	ret
+
+
+; # serial_baudsave_set_reload
+; #
+; # Sets the PaulMON 'baud save' bytes, and updates the hardware reload value
+; # In:
+; #  A - Baud rate reload value
+; ##########################################################################
+serial_baudsave_set_reload:
+	mov	th1, a								; Set the hardware reload value
+	mov	tl1, a
+; # serial_baudsave_set
+; #
+; # Sets the PaulMON 'baud save' bytes
+; # In:
+; #  A - Baud rate reload value
+; ##########################################################################
+serial_baudsave_set:
+	mov	baud_save+3, a							; Store the baud rate for next warm boot.
+	mov	baud_save+2, a
+	mov	baud_save+1, a
+	mov	baud_save+0, a
+        xrl	baud_save+2, #01010101b
+        xrl	baud_save+1, #11001100b
+        xrl	baud_save+0, #00011101b
+	ret
+
+
+; ###############################################################################################################
 ; #                                                    Misc functions
 ; ###############################################################################################################
 
@@ -1729,24 +1808,6 @@ battery_check_status:
 	jnb	acc.1, battery_check_status_finish
 	setb	c								; Battery okay
 battery_check_status_finish:
-	ret
-
-
-; # serial_mainport_enable
-; #
-; # Enables the main serial port (P1) receivers
-; ##########################################################################
-serial_mainport_enable:
-	setb	sfr_p4_80c562.7
-	ret
-
-
-; # serial_mainport_disable
-; #
-; # Disables the main serial port (P1) receivers
-; ##########################################################################
-serial_mainport_disable:
-	clr	sfr_p4_80c562.7
 	ret
 
 
