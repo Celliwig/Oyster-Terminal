@@ -180,9 +180,12 @@ lcd_lib:
 serial_lib:
 	ajmp	serial_mainport_enable						; 0x00
 	ajmp	serial_mainport_disable						; 0x02
-	ajmp	serial_baudsave_check						; 0x04
-	ajmp	serial_baudsave_set_reload					; 0x06
-	ajmp	serial_baudsave_set						; 0x08
+	ajmp	serial_rts_set							; 0x04
+	ajmp	serial_rts_unset						; 0x06
+	ajmp	serial_cts_check						; 0x08
+	ajmp	serial_baudsave_check						; 0x0a
+	ajmp	serial_baudsave_set_reload					; 0x0c
+	ajmp	serial_baudsave_set						; 0x0e
 ; misc library functions
 misc_lib:
 	ajmp	piezo_beep							; 0x00
@@ -1614,6 +1617,37 @@ serial_mainport_enable:
 ; ##########################################################################
 serial_mainport_disable:
 	clr	sfr_p4_80c562.7
+	ret
+
+
+; # serial_rts_set
+; #
+; # Set RTS (Request to Send)
+; ##########################################################################
+serial_rts_set:
+	setb	sfr_p4_80c562.0
+	ret
+
+
+; # serial_rts_unset
+; #
+; # Unset RTS (Request to Send)
+; ##########################################################################
+serial_rts_unset:
+	clr	sfr_p4_80c562.0
+	ret
+
+
+; # serial_cts_check
+; #
+; # Check the status of the CTS line
+; # Out:
+; #  Carry - Status of the CTS line
+; ##########################################################################
+	push	acc
+	mov	a, sfr_p5_80c562
+	mov	c, acc.2
+	pop	acc
 	ret
 
 
