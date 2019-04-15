@@ -2,13 +2,13 @@
 
 Crystal: 7.3728 MHz
 
-1 - 
+1 - P5.0 - 
 2 - Vdd
 3 - STARTADC - 
 4 - 
 5 - PWM1 - Piezo Buzzer
 6 - EW - Vdd - Watchdog timer disabled
-7 - P4.0 - J7 -> R21 -> Q15 -> ???
+7 - P4.0 - J7 -> R21 -> Q15 -> ??? -> P1 (4 - RTS)
 8 - P4.1 - U19 (33) SRAM card write protect
 9 - P4.2 - U19 (62) SRAM card battery voltage detect 2
 10 - P4.3 - U19 (63) SRAM card battery voltage detect 1
@@ -17,10 +17,10 @@ Crystal: 7.3728 MHz
 13 - P4.6 - 
 14 - P4.7 - U1 (18) MAX222 !SHDN (driven low, all receivers disabled)
 15 - RST
-16 - 
-17 - 
-18 - 
-19 - 
+16 - P1.0 - Memory page selection logic
+17 - P1.1 - 		"
+18 - P1.2 - 		"
+19 - P1.3 - 		"
 20 - P1.4 - U36 #10 (CET) -> LCD Enable
 21 - P1.5 - U13 i2c expander interrupt
 22 - P1.6 - SCL - U3|U4 RTC / U13 Bus expander (keyboard?)
@@ -63,11 +63,11 @@ Crystal: 7.3728 MHz
 59 - 
 60 - Vss GND
 61 - Vdd
-62 - 
-63 - 
-64 - 
-65 - 
-66 - 
-67 - 
-68 - 
+62 - P5.7 - 
+63 - P5.6 - 
+64 - P5.5 - 
+65 - P5.4 - 
+66 - P5.3 - 
+67 - P5.2 - Serial CTS
+68 - P5.1 - 
 

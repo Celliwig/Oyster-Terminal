@@ -4,12 +4,16 @@ U34 (24 Rx) -
  U1 MAX222
 ------------
 
-1 - N/C					18 - !SHDN - 
+1 - N/C					18 - !SHDN - U34 (14 - P4.7)
 2 - C1+					17 - Vcc
 3 - V+					16 - GND
-4 - C1-					15 - Dout1 - P1 (2) 
-5 - C2+					14 - Rin1 - P1 (3)
+4 - C1-					15 - Dout1 - P1 (2 - TXD) 
+5 - C2+					14 - Rin1 - P1 (3 - RXD)
 6 - C2-					13 - Rout1 - 
 7 - V-					12 - Din1 - U34 (25 Tx)
 8 - Dout2 - 				11 - Din2 - 
-9 - Rin2 - 				10 - Rout2 - 
+9 - Rin2 - P1 (5 - CTS)			10 - Rout2 - 
+
+
+P1
+5 - CTS - U1 MAX222 (9 Rin2) -> (10 - Rout2) -> U41 74HC14 (9) -> (8) -> U40 74HC11 (4) -> (6) -> U34 (67 - P5.2)
