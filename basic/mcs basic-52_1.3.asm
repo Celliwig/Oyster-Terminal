@@ -347,7 +347,7 @@
 .equ	keycode_ascii, 0x57					; Processed raw keycode to ASCII keymap
 .equ	mem_page_psen, 0x58					; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59					; Store for the currently selected RDWR page
-.equ	keymap_offset, 0x60					; Used to select the correct keymap
+.equ	keymap_offset, 0x5A					; Used to select the correct keymap
 
 ; Bit RAM definitions
 ; ##########################################################################
