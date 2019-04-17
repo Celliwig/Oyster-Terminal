@@ -133,8 +133,7 @@ memory_lib:
 	ajmp	memory_set_mode_psen						; 0x04
 	ajmp	memory_set_mode_rdwr						; 0x06
 	ajmp	memory_ramcard_present						; 0x08
-	ajmp	memory_ramcard_battery_check_status_warn			; 0x0a
-	ajmp	memory_ramcard_battery_check_status_fail			; 0x0c
+	ajmp	memory_ramcard_write_protect					; 0x0a
 ; i2c library functions
 i2c_lib:
 	ajmp	i2c_start							; 0x00
@@ -186,6 +185,10 @@ serial_lib:
 	ajmp	serial_baudsave_check						; 0x0a
 	ajmp	serial_baudsave_set_reload					; 0x0c
 	ajmp	serial_baudsave_set						; 0x0e
+; power library functions
+power_lib:
+	ajmp	power_battery_ramcard_check_status_warn
+	ajmp	power_battery_ramcard_check_status_fail
 ; misc library functions
 misc_lib:
 	ajmp	piezo_beep							; 0x00
@@ -502,34 +505,6 @@ memory_ramcard_write_protect:
 	jnb	sfr_p4_80c562.1, memory_ramcard_write_protect_finish
 	setb	c								; SRAM card write protected
 memory_ramcard_write_protect_finish:
-	ret
-
-
-; # memory_ramcard_battery_check_status_warn
-; #
-; # Returns a simple okay/warning for memory card battery
-; # Out:
-; #   Carry - battery status
-; ##########################################################################
-memory_ramcard_battery_check_status_warn:
-	clr	c								; SRAM card battery warning
-	jnb	sfr_p4_80c562.2, memory_ramcard_battery_check_status_warn_finish
-	setb	c								; SRAM card battery okay
-memory_ramcard_battery_check_status_warn_finish:
-	ret
-
-
-; # memory_ramcard_battery_check_status_fail
-; #
-; # Returns a simple okay/fail for memory card battery
-; # Out:
-; #   Carry - battery status
-; ##########################################################################
-memory_ramcard_battery_check_status_fail:
-	clr	c								; SRAM card battery failure
-	jnb	sfr_p4_80c562.3, memory_ramcard_battery_check_status_fail_finish
-	setb	c								; SRAM card battery okay
-memory_ramcard_battery_check_status_fail_finish:
 	ret
 
 
@@ -1697,6 +1672,39 @@ serial_baudsave_set:
         xrl	baud_save+2, #01010101b
         xrl	baud_save+1, #11001100b
         xrl	baud_save+0, #00011101b
+	ret
+
+
+; ###############################################################################################################
+; #                                                   Power functions
+; ###############################################################################################################
+
+
+; # power_battery_ramcard_check_status_warn
+; #
+; # Returns a simple okay/warning for memory card battery
+; # Out:
+; #   Carry - battery status
+; ##########################################################################
+power_battery_ramcard_check_status_warn:
+	clr	c								; SRAM card battery warning
+	jnb	sfr_p4_80c562.2, power_battery_ramcard_check_status_warn_finish
+	setb	c								; SRAM card battery okay
+power_battery_ramcard_check_status_warn_finish:
+	ret
+
+
+; # power_battery_ramcard_check_status_fail
+; #
+; # Returns a simple okay/fail for memory card battery
+; # Out:
+; #   Carry - battery status
+; ##########################################################################
+power_battery_ramcard_check_status_fail:
+	clr	c								; SRAM card battery failure
+	jnb	sfr_p4_80c562.3, power_battery_ramcard_check_status_fail_finish
+	setb	c								; SRAM card battery okay
+power_battery_ramcard_check_status_fail_finish:
 	ret
 
 
