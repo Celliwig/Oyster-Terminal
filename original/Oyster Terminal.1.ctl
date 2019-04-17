@@ -119,6 +119,16 @@ r	55		55h_line_offset
 k	96		p1.6_i2c_scl
 k	97		p1.7_i2c_sda
 
+k	c0		p4.0			; Port 4 bits
+k	c1		p4.1
+k	c2		p4.2
+k	c3		p4.3
+k	c4		p4.4
+k	c5		p4.5
+k	c6		p4.6
+k	c7		p4.7
+
+
 #	0		Address that execution resumes after reset
 c	0-2
 l	0		0000h_start_exec
