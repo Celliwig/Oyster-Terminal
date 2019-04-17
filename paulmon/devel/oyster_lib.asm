@@ -191,6 +191,7 @@ serial_lib:
 	ajmp	serial_baudsave_set						; 0x0e
 ; power library functions
 power_lib:
+	ajmp	power_battery_main_check_charging
 	ajmp	power_battery_main_check_status
 	ajmp	power_battery_ramcard_check_status_warn
 	ajmp	power_battery_ramcard_check_status_fail
@@ -1619,7 +1620,7 @@ serial_rts_unset:
 
 ; # serial_cts_check
 ; #
-; # Check the status of the CTS line
+; # Check the status of the CTS (Clear to Send) line
 ; # Out:
 ; #  Carry - Status of the CTS line
 ; ##########################################################################
@@ -1683,6 +1684,21 @@ serial_baudsave_set:
 ; ###############################################################################################################
 ; #                                                   Power functions
 ; ###############################################################################################################
+
+
+; # power_battery_main_check_charging
+; #
+; # Returns whether the main battery is currently fast charging
+; # U2 (MAX713) - FASTCHG output is checked
+; # Out:
+; #   Carry - charge status
+; ##########################################################################
+power_battery_main_check_charging:
+	clr	c
+	jnb	sfr_p4_80c562.4, power_battery_main_check_charging_finish
+	setb	c
+power_battery_main_check_charging_finish:
+	ret
 
 
 ; # power_battery_main_check_status
