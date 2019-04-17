@@ -69,5 +69,5 @@ Crystal: 7.3728 MHz
 65 - P5.4 - 
 66 - P5.3 - 
 67 - P5.2 - Serial CTS
-68 - P5.1 - 
+68 - P5.1 - Main battery status
 
