@@ -191,6 +191,7 @@ serial_lib:
 	ajmp	serial_baudsave_set						; 0x0e
 ; power library functions
 power_lib:
+	ajmp	power_battery_main_check_status
 	ajmp	power_battery_ramcard_check_status_warn
 	ajmp	power_battery_ramcard_check_status_fail
 ; misc library functions
@@ -198,7 +199,6 @@ misc_lib:
 	ajmp	piezo_beep							; 0x00
 	ajmp	piezo_pwm_sound							; 0x02
 	ajmp	sdelay								; 0x04
-	ajmp	battery_check_status						; 0x06
 
 
 ; ###############################################################################################################
@@ -1685,6 +1685,21 @@ serial_baudsave_set:
 ; ###############################################################################################################
 
 
+; # power_battery_main_check_status
+; #
+; # Returns a simple okay/fail for the main battery
+; # Out:
+; #   Carry - battery status
+; ##########################################################################
+power_battery_main_check_status:
+	mov	a, sfr_p5_80c562						; Read Port 5
+	clr	c								; Battery low
+	jnb	acc.1, power_battery_main_check_status_finish
+	setb	c								; Battery okay
+power_battery_main_check_status_finish:
+	ret
+
+
 ; # power_battery_ramcard_check_status_warn
 ; #
 ; # Returns a simple okay/warning for memory card battery
@@ -1841,21 +1856,6 @@ terminal_esc_cursor_right:
 	ljmp	cout
 
 .equ	esc_char, 0x1b
-
-
-; # battery_check_status
-; #
-; # Returns a simple okay/fail for the main battery
-; # Out:
-; #   Carry - battery status
-; ##########################################################################
-battery_check_status:
-	mov	a, sfr_p5_80c562						; Read Port 5
-	clr	c								; Battery low
-	jnb	acc.1, battery_check_status_finish
-	setb	c								; Battery okay
-battery_check_status_finish:
-	ret
 
 
 ; ###############################################################################################################
@@ -2410,7 +2410,7 @@ system_setup_rtc_print:
 system_setup_main_battery:
 	mov	dptr, #str_battery
 	lcall	pstr
-	lcall	battery_check_status
+	lcall	power_battery_main_check_status
 	mov	dptr, #str_fail
 	jnc	system_setup_main_battery_print_status
 	mov	dptr, #str_okay
