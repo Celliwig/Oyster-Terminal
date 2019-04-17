@@ -1,6 +1,19 @@
   Address Selection
 ---------------------
 
+ U11 74HC174 (HEX D-type flip-flops with clear)
+------------------------------------------------
+
+ 1 - !CLR - U39 (6)				16 - Vcc
+ 2 - 1Q - LCD contrast				15 - 6Q - U41 (11) -> (10) -> U?? MAX662 (8 - SHDN) Flash programming voltage
+ 3 - 1D - U34 (57 - AD0)			14 - 6D - U34 (52 - AD5)
+ 4 - 2D - U34 (56 - AD1)			13 - 5D - U34 (53 - AD4)
+ 5 - 2Q - LCD contrast				12 - 5Q - LCD backlight
+ 6 - 3D - U34 (55 - AD2)			11 - 4D - U34 (54 - AD3)
+ 7 - 3Q - LCD contrast				10 - 4Q - LCD contrast
+ 8 - Gnd					 9 - CLK - U38 (4)
+
+
  U22 - 74HC373 (Octal D-type transparent latch; 3-state)
 ---------------------------------------------------------
 
@@ -190,9 +203,6 @@
  3 - COMin				6 - Reset
  4 - Gnd				5 - COMout
 
-
-
- U11 74HC174 ()
 
 
  Memory Addresses
