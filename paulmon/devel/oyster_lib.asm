@@ -46,6 +46,10 @@
 .equ    pint8, 0x98+paulmon2							; Print Acc at an integer, -128 to 127
 .equ    pint16u, 0x9b+paulmon2							; Print DPTR as an integer, 0 to 65535
 
+.equ	stack, 0x70								; location of the stack
+.equ	baud_save, 0x68								; save baud for warm boot, 4 bytes
+
+
 ; SFR definitions
 ; ##########################################################################
 .equ	sfr_cml0_80c562, 0xA9							; Timer2 compare L register 0
@@ -1619,6 +1623,7 @@ serial_rts_unset:
 ; # Out:
 ; #  Carry - Status of the CTS line
 ; ##########################################################################
+serial_cts_check:
 	push	acc
 	mov	a, sfr_p5_80c562
 	mov	c, acc.2
@@ -1857,7 +1862,7 @@ battery_check_status_finish:
 ; #                                                     General data
 ; ###############################################################################################################
 
-.org    locat+0x700
+.org    locat+0x800
 
 ascii_font_table:
 ascii_font_table_char_0:							; Null
@@ -2121,7 +2126,7 @@ glyph_double_size_conversion_table:
 	.db	0x00, 0x03, 0x0c, 0x0f, 0x30, 0x33, 0x3c, 0x3f
 	.db	0xc0, 0xc3, 0xcc, 0xcf, 0xf0, 0xf3, 0xfc, 0xff
 
-.org    locat+0xB00								; location defined so the different keymaps can easily be selected
+.org    locat+0xC00								; location defined so the different keymaps can easily be selected
 ; Keymap
 keycode_2_character_table1:
 	.db	'A'	; A
@@ -2300,7 +2305,7 @@ str_init_serial:	.db	"       S - Serial", 0
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0xd00
+.org    locat+0x1000
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     253,',',0,0		; id (253=startup)
 .db     0,0,0,0			; prompt code vector
@@ -2310,7 +2315,7 @@ str_init_serial:	.db	"       S - Serial", 0
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "System setup",0
-.org    locat+0xd40		; executable code begins here
+.org    locat+0x1040		; executable code begins here
 
 system_setup:
 	lcall	newline
@@ -2422,7 +2427,7 @@ system_setup_mcard_battery:
 	lcall	cout
 	mov	dptr, #str_battery
 	lcall	pstr
-	lcall	memory_ramcard_battery_check_status_warn
+	lcall	power_battery_ramcard_check_status_warn
 	mov	dptr, #str_fail
 	jnc	system_setup_mcard_battery_print_status
 	mov	dptr, #str_okay
@@ -2448,7 +2453,7 @@ system_setup_continue:
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0xf00
+.org    locat+0x1200
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     249,',',0,0		; id (249=init)
 .db     0,0,0,0			; prompt code vector
@@ -2458,7 +2463,7 @@ system_setup_continue:
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "System init",0
-.org    locat+0xf40		; executable code begins here
+.org    locat+0x1240		; executable code begins here
 
 system_init:
 ; General system config
