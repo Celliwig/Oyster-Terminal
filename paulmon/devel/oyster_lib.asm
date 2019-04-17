@@ -192,7 +192,7 @@ serial_lib:
 ; power library functions
 power_lib:
 	ajmp	power_battery_main_check_charging
-	ajmp	power_battery_main_check_status
+	ajmp	power_battery_backup_check_status
 	ajmp	power_battery_ramcard_check_status_warn
 	ajmp	power_battery_ramcard_check_status_fail
 ; misc library functions
@@ -1701,18 +1701,18 @@ power_battery_main_check_charging_finish:
 	ret
 
 
-; # power_battery_main_check_status
+; # power_battery_backup_check_status
 ; #
-; # Returns a simple okay/fail for the main battery
+; # Returns a simple okay/fail for the backup battery
 ; # Out:
 ; #   Carry - battery status
 ; ##########################################################################
-power_battery_main_check_status:
+power_battery_backup_check_status:
 	mov	a, sfr_p5_80c562						; Read Port 5
 	clr	c								; Battery low
-	jnb	acc.1, power_battery_main_check_status_finish
+	jnb	acc.1, power_battery_backup_check_status_finish
 	setb	c								; Battery okay
-power_battery_main_check_status_finish:
+power_battery_backup_check_status_finish:
 	ret
 
 
@@ -2304,6 +2304,7 @@ str_read_only:		.db	"Read Only", 0
 str_rtc:		.db	"RTC init: ", 0
 str_timeout:		.db	"Timeout: ", 0
 ;str_keyb:		.db	"Keyboard init: ", 0
+str_backup:		.db	"Backup ", 0
 str_battery:		.db	"Battery: ", 0
 str_init_header:	.db	" PAULMON ", 0
 str_init_select:	.db	"Select console:", 0
@@ -2423,14 +2424,16 @@ system_setup_rtc_print:
 	lcall	pstr
 	lcall	newline
 
-system_setup_main_battery:
+system_setup_backup_battery:
+	mov	dptr, #str_backup
+	lcall	pstr
 	mov	dptr, #str_battery
 	lcall	pstr
-	lcall	power_battery_main_check_status
+	lcall	power_battery_backup_check_status
 	mov	dptr, #str_fail
-	jnc	system_setup_main_battery_print_status
+	jnc	system_setup_backup_battery_print_status
 	mov	dptr, #str_okay
-system_setup_main_battery_print_status:
+system_setup_backup_battery_print_status:
 	lcall	pstr
 	lcall	newline
 
