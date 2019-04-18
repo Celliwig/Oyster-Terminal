@@ -63,10 +63,10 @@
  1 - S - U31 (12)				16 - Vcc
  2 - 1i0 - U25 (19)				15 - !E - U37 (6)
  3 - 1i1 - U22 (19)				14 - 4i0 - U34 (17 P1.1)
- 4 - 1Y	- U19 (SRAM card ???)			13 - 4i1 - U34 (19 P1.3)
+ 4 - 1Y	- J1 (SRAM card ???)			13 - 4i1 - U34 (19 P1.3)
  5 - 2i0 - U34 (47 !PSEN)			12 - 4Y - U27 (13)
  6 - 2i1 - U34 (31 !RD)				11 - 3i0 - Gnd
- 7 - 2Y - U19 (SRAM card !OE)			10 - 3i1 - Gnd
+ 7 - 2Y - J1 (SRAM card !OE)			10 - 3i1 - Gnd
  8 - Gnd					 9 - 3Y - N/C ???
 
 
@@ -115,11 +115,11 @@
  1 - S - U31 (12)				16 - Vcc
  2 - 1i0 - U25 (9)				15 - !E - U37 (6)
  3 - 1i1 - U22 (9)				14 - 4i0 - U25 (16)
- 4 - 1Y	- U19 (SRAM card A18???)		13 - 4i1 - U22 (16)
- 5 - 2i0 - U25 (12)				12 - 4Y - U19 (SRAM card A21???)
+ 4 - 1Y	- J1 (SRAM card A18???)			13 - 4i1 - U22 (16)
+ 5 - 2i0 - U25 (12)				12 - 4Y - J1 (SRAM card A21???)
  6 - 2i1 - U22 (12)				11 - 3i0 - U25 (15)
- 7 - 2Y - U19 (SRAM card A19???)		10 - 3i1 - U22 (15)
- 8 - Gnd					 9 - 3Y - U19 (SRAM card A20???)
+ 7 - 2Y - J1 (SRAM card A19???)			10 - 3i1 - U22 (15)
+ 8 - Gnd					 9 - 3Y - J1 (SRAM card A20???)
 
 
  U31 74HC10 (Triple 3-input NAND gate)
@@ -130,7 +130,7 @@
  3 - 2A - U33 (1)				12 - 1Y - @SELF (11) & U23 (1) & U26 (1) & U30 (1) & U33 (8) & U38 (14) 
  4 - 2B - U27 (11)				11 - 3C - @SELF (12)
  5 - 2C - U39 (6 - Reset)			10 - 3B - U37 (8)
- 6 - 2Y - U19 (SRAM card !CE1)			 9 - 3A - U37 (8)
+ 6 - 2Y - J1 (SRAM card !CE1)			 9 - 3A - U37 (8)
  7 - Gnd					 8 - 3Y - U28 (2/3)
 
 
