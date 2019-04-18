@@ -1,0 +1,24 @@
+    Misc ICs
+----------------
+
+ U7 (TIF306 ER HC74 ???????)
+-----------------------------
+
+ 1 - 						14 - Vdd
+ 2 - 						13 - D6 -> U34 (26 - !INT0)
+ 3 - 						12 - D6 -> U34 (26 - !INT0)
+ 4 - 						11 - 
+ 5 - 						10 - 
+ 6 - 						 9 - 
+ 7 - Gnd					 8 - 
+
+
+ U39 1252-1T (Threshold detector and reset generator)
+------------------------------------------------------
+ 1 - CT	- Vdd				8 - Vdd
+ 2 - Select - Vdd			7 - !PowF - D15 - U34 (26 - !INT0)
+ 3 - COMin - R60 - Vdd			6 - Reset - R64 - 
+ 4 - Gnd				5 - COMout - U34 (1 - P5.0)
+
+
+

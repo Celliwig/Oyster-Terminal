@@ -2,7 +2,7 @@
 
 Crystal: 7.3728 MHz
 
-1 - P5.0 - 
+1 - P5.0 - U39 (5 - COMOUT)
 2 - Vdd
 3 - STARTADC - 
 4 - 
@@ -27,8 +27,12 @@ Crystal: 7.3728 MHz
 23 - P1.7 - SDA - 		"
 24 - P3.0 (Serial Rx)
 25 - P3.1 (Serial Tx)
-26 - P3.2 - 
-27 - P3.3 - 
+26 - !INT0 - 
+	D15 - U39 (7 - !POWF)
+	J7 (7) Expansion connector
+	D6 - U7 (13)
+	D6 - U7 (12)
+27 - !INT1 - R69 47k pullup - J7 (2) Expansion port
 28 - P3.4 - Serial DTR
 29 - P3.5 - 
 30 - P3.6 (!WR)
@@ -67,7 +71,7 @@ Crystal: 7.3728 MHz
 63 - P5.6 - 
 64 - P5.5 - 
 65 - P5.4 - 
-66 - P5.3 - 
+66 - P5.3 - SRAM card present
 67 - P5.2 - Serial CTS
 68 - P5.1 - Backup battery status
 

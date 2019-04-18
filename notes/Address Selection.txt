@@ -196,20 +196,11 @@
  8 - Gnd					 9 - 2!Y3 - 
 
 
- U39 1252-1T (Threshold detector and reset generator)
-------------------------------------------------------
- 1 - CT					8 - Vdd
- 2 - Select ()				7 - !PowF
- 3 - COMin				6 - Reset
- 4 - Gnd				5 - COMout
-
-
-
  Memory Addresses
 ------------------
 
 Writing to address with P1.4 set
-0x00xx - Lcd Properties (0bxxxxcccc - c=contrast)
+0x00xx - Lcd Properties (0bxxfbcccc - b=backlight, c=contrast, f=flash programming voltage)
 0x04xx - Keyboard Column Select (U19 74HC174)
 
 0x08xx/0x0cxx:
