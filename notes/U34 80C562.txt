@@ -9,9 +9,9 @@ Crystal: 7.3728 MHz
 5 - PWM1 - Piezo Buzzer
 6 - EW - Vdd - Watchdog timer disabled
 7 - P4.0 - J7 -> R21 -> Q15 -> ??? -> P1 (4 - RTS)
-8 - P4.1 - U19 (33) SRAM card write protect
-9 - P4.2 - U19 (62) SRAM card battery voltage detect 2
-10 - P4.3 - U19 (63) SRAM card battery voltage detect 1
+8 - P4.1 - J1 (33) SRAM card write protect
+9 - P4.2 - J1 (62) SRAM card battery voltage detect 2
+10 - P4.3 - J1 (63) SRAM card battery voltage detect 1
 11 - P4.4 - U2 (8) MAX713 !FASTCHG (low when device is fast charging batteries)
 12 - P4.5 - 
 13 - P4.6 - 
