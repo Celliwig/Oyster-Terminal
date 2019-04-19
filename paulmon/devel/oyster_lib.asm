@@ -115,6 +115,18 @@
 .flag	keyboard_new_char, 0x21.7
 
 
+;  Baud rate reload definitions
+; ##########################################################################
+.equ	BAUD_19200, 0xFE
+.equ	BAUD_9600, 0xFC
+.equ	BAUD_4800, 0xF8
+.equ	BAUD_2400, 0xF0
+.equ	BAUD_1200, 0xE0
+.equ	BAUD_600, 0xC0
+.equ	BAUD_300, 0x80
+.equ	BAUD_150, 0x00
+
+
 .org	locat
 ; ###############################################################################################################
 ; #                                                  Library jump table
@@ -1655,6 +1667,12 @@ serial_baudsave_check_finish:
 	ret
 
 
+; # serial_baudsave_set_default
+; #
+; # Sets the serial baud rate to the default value (19200)
+; ##########################################################################
+serial_baudsave_set_default:
+	mov	a, #BAUD_19200
 ; # serial_baudsave_set_reload
 ; #
 ; # Sets the PaulMON 'baud save' bytes, and updates the hardware reload value
@@ -2618,5 +2636,9 @@ system_init_mode_select_serial:
 system_init_mode_select_oyster:
 	cjne	a, #'O',system_init_timeout_loop_setup
 	setb	use_oysterlib
+	lcall	serial_baudsave_check						; See if a baud rate is already configured
+	jc	system_init_mode_select_oyster_cls
+	lcall	serial_baudsave_set_default					; Otherwise set the default baud rate (and bypass auto detection)
+system_init_mode_select_oyster_cls:
 	lcall	lcd_clear_screen
 	ret
