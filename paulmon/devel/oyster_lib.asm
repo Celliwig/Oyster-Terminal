@@ -2313,6 +2313,58 @@ str_init_serial:	.db	"       S - Serial", 0
 
 
 ; ###############################################################################################################
+; #                                                     OysterLib ISVs
+; ###############################################################################################################
+
+; Startup (not used obviously)
+.org    locat+0x1000
+
+; External interrupt 0 (INT0)
+.org    locat+0x1003
+
+; Timer 0 overflow
+.org    locat+0x100B
+
+; External interrupt 1 (INT1)
+.org    locat+0x1013
+
+; Timer 1 overflow
+.org    locat+0x101B
+
+; SIO0 (UART)
+.org    locat+0x1023
+
+; SIO1 (I2C, doesn't exist)
+.org    locat+0x102B
+
+; Timer 2 capture 0
+.org    locat+0x1033
+
+; Timer 2 capture 1
+.org    locat+0x103B
+
+; Timer 2 capture 2
+.org    locat+0x1043
+
+; Timer 2 capture 3
+.org    locat+0x104B
+
+; ADC completion
+.org    locat+0x1053
+
+; Timer 2 compare 0
+.org    locat+0x105B
+
+; Timer 2 compare 1
+.org    locat+0x1063
+
+; Timer 2 compare 2
+.org    locat+0x106B
+
+; Timer 2 overflow
+.org    locat+0x1073
+
+; ###############################################################################################################
 ; #                                                       Commands
 ; ###############################################################################################################
 
@@ -2322,7 +2374,7 @@ str_init_serial:	.db	"       S - Serial", 0
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0x1000
+.org    locat+0x1100
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     253,',',0,0		; id (253=startup)
 .db     0,0,0,0			; prompt code vector
@@ -2332,7 +2384,7 @@ str_init_serial:	.db	"       S - Serial", 0
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "System setup",0
-.org    locat+0x1040		; executable code begins here
+.org    locat+0x1140		; executable code begins here
 
 system_setup:
 	lcall	newline
@@ -2472,7 +2524,7 @@ system_setup_continue:
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0x1200
+.org    locat+0x1300
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     249,',',0,0		; id (249=init)
 .db     0,0,0,0			; prompt code vector
@@ -2482,7 +2534,7 @@ system_setup_continue:
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "System init",0
-.org    locat+0x1240		; executable code begins here
+.org    locat+0x1340		; executable code begins here
 
 system_init:
 ; General system config
