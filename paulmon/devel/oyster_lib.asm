@@ -102,6 +102,7 @@
 ; Bit RAM definitions
 ; ##########################################################################
 .flag	use_oysterlib, 0x20.0
+.flag	key_click, 0x20.1
 .flag	mem_mode_psen_ram, 0x20.2						; This bit is not randomly chosen, see memory command
 .flag	mem_mode_psen_ram_card, 0x20.3						; This bit is not randomly chosen, see memory command
 .flag	tmp_bit, 0x20.4
@@ -1053,6 +1054,13 @@ keyboard_read_key_make_keycode:
 keyboard_read_key_make_keycode_update:
 	mov	keycode_raw, a							; Save result (0bxxCCCRRR)
 	setb	keyboard_key_down						; Set, so we don't loop on the same key press
+
+	jnb	key_click, keyboard_read_key_make_keycode_check_mode		; Don't emit a key 'click' if disabled
+	push	acc
+	mov	a, #0x0e							; 7 kHz
+	mov	b, #0x01							; 50 ms
+	lcall	piezo_beep
+	pop	acc
 keyboard_read_key_make_keycode_check_mode:
 	cjne	a, #0x20, keyboard_read_key_make_keycode_check_mode_lock	; Look for the 'mode' keycode
 	mov	a, keymap_offset						; Get the currently selected keymap
@@ -1066,7 +1074,7 @@ keyboard_read_key_make_keycode_check_mode_inc:
 keyboard_read_key_make_keycode_check_mode_inc_cmp:
 	jc	keyboard_reset
 	mov	keymap_offset, #0x00						; Select default keymap
-	sjmp	keyboard_reset
+	ajmp	keyboard_reset
 keyboard_read_key_make_keycode_check_mode_lock:
 	cjne	a, #0x2C, keyboard_read_key_make_keycode_ascii			; Check for 'DEL' key
 	xch	a, keymap_offset
@@ -1100,6 +1108,25 @@ keyboard_wait_for_keypress:
 	jnb	keyboard_new_char, keyboard_wait_for_keypress			; Wait until there is one
 	jb	keyboard_key_down, keyboard_wait_for_keypress			; Wait for key to be released
 	ret
+
+
+; # keyboard_click_toggle
+; #
+; # Toggle key_click
+; ##########################################################################
+keyboard_click_toggle:
+	mov	c, key_click
+	cpl	c
+; # keyboard_click_set
+; #
+; # Sets whether a 'click' is emmitted when a key is depressed
+; # In:
+; #   Carry - When set, key clicks emit a tone
+; ##########################################################################
+keyboard_click_set:
+	mov	key_click, c
+	ret
+
 
 ; ###############################################################################################################
 ; #                                                    LCD functions
@@ -1553,6 +1580,15 @@ lcd_set_properties_do:
 	ret
 
 
+; # lcd_set_backlight_toggle
+; #
+; # Toggle backlight
+; ##########################################################################
+lcd_set_backlight_toggle:
+	mov	a, lcd_properties
+	mov	c, acc.4
+	cpl	c
+	sjmp	lcd_set_backlight
 ; # lcd_set_backlight_on
 ; #
 ; # Turn on LCD backlight
@@ -1946,9 +1982,9 @@ ascii_font_table_char_8:							;
 	.db	0x08, 0x1c, 0x2a, 0x08, 0x08, 0x00
 ascii_font_table_char_9:							; 
 	.db	0x08, 0x08, 0x2a, 0x1c, 0x08, 0x00
-ascii_font_table_char_10:							; 
+ascii_font_table_char_10:							; Down arrow
 	.db	0x10, 0x20, 0x7f, 0x20, 0x10, 0x00
-ascii_font_table_char_11:							; 
+ascii_font_table_char_11:							; Up arrow
 	.db	0x04, 0x02, 0x7f, 0x02, 0x04, 0x00
 ascii_font_table_char_12:							; 
 	.db	0x40, 0x40, 0x44, 0x40, 0x40, 0x00
@@ -2362,6 +2398,10 @@ str_setup_screenkey:	.db	"   Screen/Keyboard   ", 0
 str_setup_datetime:	.db	"   Set Date/Time   ", 0
 str_setup_serial:	.db	"   Configure Serial   ", 0
 str_setup_power:	.db	"   Power Status   ", 0
+str_setupsk_header:	.db	"Screen/Keyboard", 0
+str_setupsk_contrast:	.db	0x0a,"/",0x0b," - Adjust contrast", 0
+str_setupsk_backlight:	.db	"  B - Toggle backlight", 0
+str_setupsk_keyclick:	.db	"  C - Toggle key click", 0
 
 
 ; ###############################################################################################################
@@ -2693,6 +2733,8 @@ system_init_mode_select_oyster_cls:
 .org    locat+0x1440            ; executable code begins here
 
 
+; # Menu
+; #######
 setup:
 	jb	use_oysterlib, setup_menu_start
 	lcall	lcd_init
@@ -2770,40 +2812,99 @@ setup_menu_loop_keyboard_scan_down:
 	mov	tmp_var, #0x03
 	sjmp	setup_menu_loop
 setup_menu_loop_keyboard_scan_enter:
+	cjne	a, #0x2F, setup_menu_loop_keyboard_scan_cancel
 	mov	a, tmp_var
 setup_menu_loop_keyboard_scan_enter_screenkey:
-	cjne	a, 0x00, setup_menu_loop_keyboard_scan_enter_datetime
+	cjne	a, #0x00, setup_menu_loop_keyboard_scan_enter_datetime
 	acall	setup_screenkey
-	sjmp	setup_menu_loop
+	ajmp	setup_menu_start
 setup_menu_loop_keyboard_scan_enter_datetime:
-	cjne	a, 0x01, setup_menu_loop_keyboard_scan_enter_serial
+	cjne	a, #0x01, setup_menu_loop_keyboard_scan_enter_serial
 	acall	setup_datetime
-	sjmp	setup_menu_loop
+	ajmp	setup_menu_start
 setup_menu_loop_keyboard_scan_enter_serial:
-	cjne	a, 0x02, setup_menu_loop_keyboard_scan_enter_power
+	cjne	a, #0x02, setup_menu_loop_keyboard_scan_enter_power
 	acall	setup_serial
-	sjmp	setup_menu_loop
+	ajmp	setup_menu_start
 setup_menu_loop_keyboard_scan_enter_power:
-	cjne	a, 0x03, setup_menu_loop_keyboard_scan_enter_other
+	cjne	a, #0x03, setup_menu_loop_keyboard_scan_enter_other
 	acall	setup_power
-	sjmp	setup_menu_loop
+	ajmp	setup_menu_start
 setup_menu_loop_keyboard_scan_enter_other:
-	sjmp	setup_menu_loop
+	ajmp	setup_menu_loop
 setup_menu_loop_keyboard_scan_cancel:
-	cjne	a, #0x07, setup_menu_loop
+	cjne	a, #0x07, setup_menu_loop_keyboard_scan
 	jb	use_oysterlib, setup_menu_finish
 	lcall	lcd_off
 setup_menu_finish:
-        ret
-
-setup_screenkey:
 	ret
 
+; # Screen/Keyboard
+; ##################
+setup_screenkey:
+	lcall	lcd_clear_screen
+	mov	tmp_var, #0
+
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x00					; 1st row, 1st column
+	mov	dptr, #str_setupsk_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+	clr	lcd_glyph_invert
+
+	mov	lcd_start_position, #0x64					; 3rd row, 5th column
+	mov	dptr, #str_setupsk_contrast
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0x84					; 4th row, 5th column
+	mov	dptr, #str_setupsk_backlight
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0xA4					; 5th row, 5th column
+	mov	dptr, #str_setupsk_keyclick
+	lcall	lcd_pstr
+
+setup_screenkey_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_screenkey_keyboard_scan
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+setup_screenkey_keyboard_scan_up:
+	cjne	a, #0x05, setup_screenkey_keyboard_scan_down
+	lcall	lcd_set_contrast_inc
+	sjmp	setup_screenkey_keyboard_scan
+setup_screenkey_keyboard_scan_down:
+	cjne	a, #0x06, setup_screenkey_keyboard_scan_b
+	lcall	lcd_set_contrast_dec
+	sjmp	setup_screenkey_keyboard_scan
+setup_screenkey_keyboard_scan_b:
+	cjne	a, #0x08, setup_screenkey_keyboard_scan_c
+	lcall	lcd_set_backlight_toggle
+	sjmp	setup_screenkey_keyboard_scan
+setup_screenkey_keyboard_scan_c:
+	cjne	a, #0x10, setup_screenkey_keyboard_scan_cancel
+	lcall	keyboard_click_toggle
+	sjmp	setup_screenkey_keyboard_scan
+setup_screenkey_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_screenkey_keyboard_scan
+	ret
+
+; # Date/Time
+; ############
 setup_datetime:
 	ret
 
+; # Serial
+; #########
 setup_serial:
 	ret
 
+; # Power
+; ########
 setup_power:
 	ret
