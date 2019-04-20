@@ -94,6 +94,8 @@
 .equ	mem_page_psen, 0x58							; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59							; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A							; Used to select the correct keymap
+.equ	tmp_var, 0x67
+; 0x68-0x6B used by baud_save
 .equ	lcd_props_save, 0x6C							; Used to retain the backlight/contrast settings when the screen is off
 
 
@@ -1529,8 +1531,8 @@ lcd_set_properties_off:
 lcd_set_properties_defaults:
 	lcall	serial_baudsave_check						; See if the values already exist
 	mov	a, #0x14							; Otherwise defaults, backlight on, contrast=4
-	jnc	lcd_set_properties
-	mov	a, lcd_props_save						; Get existing values
+;	jnc	lcd_set_properties
+;	mov	a, lcd_props_save						; Get existing values
 ; # lcd_set_properties
 ; #
 ; # Updates the backlight/contrast of the LCD display
@@ -2287,7 +2289,7 @@ keycode_2_character_table2:
 	.db	0x0d	; Enter
 keycode_2_character_table3:
 	.db	'='	; A
-	.db	'{'	; E
+	.db	'}'	; E
 	.db	'@'	; K
 	.db	'?'	; Q
 	.db	0x4F	; W (End, when preceded by a null character)
@@ -2295,7 +2297,7 @@ keycode_2_character_table3:
 	.db	0x0a	; Down
 	.db	0x18	; Cancel
 	.db	'+'	; B
-	.db	'}'	; F
+	.db	'['	; F
 	.db	0x27	; L (')
 	.db	'|'	; R
 	.db	0x1B	; X (Escape)
@@ -2303,15 +2305,15 @@ keycode_2_character_table3:
 	.db	0x3E	; 4 (F4, when preceded by a null character)
 	.db	0x3B	; 1 (F1, when preceded by a null character)
 	.db	'/'	; C
-	.db	'['	; G
+	.db	']'	; G
 	.db	'~'	; M
 	.db	0x5C	; S (\)
 	.db	0x49	; Y (PageUp, when preceded by a null character)
 	.db	0x42	; 8 (F8, when preceded by a null character)
 	.db	0x3F	; 5 (F5, when preceded by a null character)
 	.db	0x3C	; 2 (F2, when preceded by a null character)
-	.db	'?'	; D
-	.db	']'	; H
+	.db	'{'	; D
+	.db	'?'	; H
 	.db	'#'	; N
 	.db	0xAC	; T (¬)
 	.db	0x51	; Z (PageDown, when preceded by a null character)
@@ -2671,3 +2673,137 @@ system_init_mode_select_oyster_cls:
 	lcall	lcd_clear_screen
 	ret
 
+
+;---------------------------------------------------------;
+;                                                         ;
+;                          Setup                          ;
+;                                                         ;
+;---------------------------------------------------------;
+
+.org    locat+0x1400
+.db     0xA5,0xE5,0xE0,0xA5     ; signiture bytes
+.db     254,'!',0,0             ; id (254=cmd)
+.db     0,0,0,0                 ; prompt code vector
+.db     0,0,0,0                 ; reserved
+.db     0,0,0,0                 ; reserved
+.db     0,0,0,0                 ; reserved
+.db     0,0,0,0                 ; user defined
+.db     255,255,255,255         ; length and checksum (255=unused)
+.db     "Setup",0
+.org    locat+0x1440            ; executable code begins here
+
+
+setup:
+	jb	use_oysterlib, setup_menu_start
+	lcall	lcd_init
+
+setup_menu_start:
+	lcall	lcd_clear_screen
+	mov	tmp_var, #0
+
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x07					; 1st row, 5th column
+	mov	dptr, #str_setup_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+setup_menu_loop:
+
+	clr	lcd_glyph_invert
+	mov	a, tmp_var
+	cjne	a, #0, setup_menu_loop_select0
+	setb	lcd_glyph_invert
+setup_menu_loop_select0:
+	mov	lcd_start_position, #0x65					; 4th row, 6th column
+	mov	dptr, #str_setup_screenkey
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_invert
+	mov	a, tmp_var
+	cjne	a, #1, setup_menu_loop_select1
+	setb	lcd_glyph_invert
+setup_menu_loop_select1:
+	mov	lcd_start_position, #0x86					; 5th row, 7th column
+	mov	dptr, #str_setup_datetime
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_invert
+	mov	a, tmp_var
+	cjne	a, #2, setup_menu_loop_select2
+	setb	lcd_glyph_invert
+setup_menu_loop_select2:
+	mov	lcd_start_position, #0xa4					; 6th row, 5th column
+	mov	dptr, #str_setup_serial
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_invert
+	mov	a, tmp_var
+	cjne	a, #3, setup_menu_loop_select3
+	setb	lcd_glyph_invert
+setup_menu_loop_select3:
+	mov	lcd_start_position, #0xc7					; 6th row, 8th column
+	mov	dptr, #str_setup_power
+	lcall	lcd_pstr
+
+setup_menu_loop_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_menu_loop_keyboard_scan
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+setup_menu_loop_keyboard_scan_up:
+	cjne	a, #0x05, setup_menu_loop_keyboard_scan_down
+	mov	a, tmp_var
+	jz	setup_menu_loop
+	dec	a
+	mov	tmp_var, a
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_down:
+	cjne	a, #0x06, setup_menu_loop_keyboard_scan_enter
+	mov	a, tmp_var
+	inc	a
+	mov	tmp_var, a
+	jnb	acc.2, setup_menu_loop
+	mov	tmp_var, #0x03
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_enter:
+	mov	a, tmp_var
+setup_menu_loop_keyboard_scan_enter_screenkey:
+	cjne	a, 0x00, setup_menu_loop_keyboard_scan_enter_datetime
+	acall	setup_screenkey
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_enter_datetime:
+	cjne	a, 0x01, setup_menu_loop_keyboard_scan_enter_serial
+	acall	setup_datetime
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_enter_serial:
+	cjne	a, 0x02, setup_menu_loop_keyboard_scan_enter_power
+	acall	setup_serial
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_enter_power:
+	cjne	a, 0x03, setup_menu_loop_keyboard_scan_enter_other
+	acall	setup_power
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_enter_other:
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_menu_loop
+	jb	use_oysterlib, setup_menu_finish
+	lcall	lcd_off
+setup_menu_finish:
+        ret
+
+setup_screenkey:
+	ret
+
+setup_datetime:
+	ret
+
+setup_serial:
+	ret
+
+setup_power:
+	ret
