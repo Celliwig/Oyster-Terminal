@@ -94,6 +94,8 @@
 .equ	mem_page_psen, 0x58							; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59							; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A							; Used to select the correct keymap
+.equ	lcd_props_save, 0x6C							; Used to retain the backlight/contrast settings when the screen is off
+
 
 ; Bit RAM definitions
 ; ##########################################################################
@@ -1133,6 +1135,8 @@ lcd_get_data:
 ; # Cycle through the subscreens turning them off
 ; ##########################################################################
 lcd_off:
+	acall	lcd_set_properties_off						; Turn off backlight, et al.
+
 	setb	p1.4								; Enable clock
 	mov	dph, #0x80							; Select LCD (command register)
 lcd_off_subscreen:
@@ -1151,6 +1155,8 @@ lcd_off_subscreen:
 ; # Initialise the LCD, clear the memory
 ; ##########################################################################
 lcd_init:
+	acall	lcd_set_properties_defaults
+
 	setb	p1.4								; Enable clock
 	mov	dph, #0x80							; Select LCD (command register)
 lcd_init_subscreen:
@@ -1509,15 +1515,34 @@ lcd_pstr_finish:
 	ret
 
 
+; # lcd_set_properties_off
+; #
+; # Used in lcd_off, powers off ancillary lcd components
+; ##########################################################################
+lcd_set_properties_off:
+	mov	a, #0x00
+	sjmp	lcd_set_properties_do						; This way we don't save the changes
+; # lcd_set_properties_defaults
+; #
+; # Configures backlight/contrast to default values
+; ##########################################################################
+lcd_set_properties_defaults:
+	lcall	serial_baudsave_check						; See if the values already exist
+	mov	a, #0x14							; Otherwise defaults, backlight on, contrast=4
+	jnc	lcd_set_properties
+	mov	a, lcd_props_save						; Get existing values
 ; # lcd_set_properties
 ; #
 ; # Updates the backlight/contrast of the LCD display
 ; # Latch @00xx + p1.4
-; # 0bxxxbcccc - b=backlight, c=contrast
+; # 0bxxfbcccc - b=backlight, c=contrast, f=flash voltage enable
 ; # In:
 ; #   A - LCD properties value
 ; ##########################################################################
 lcd_set_properties:
+	mov	lcd_props_save, a						; Save config
+	anl	lcd_props_save, #0x1f						; Make sure we only save the values we are interested in
+lcd_set_properties_do:
 	mov	lcd_properties, a
 	setb	p1.4
 	mov	dph, #0
@@ -2324,10 +2349,17 @@ str_timeout:		.db	"Timeout: ", 0
 ;str_keyb:		.db	"Keyboard init: ", 0
 str_backup:		.db	"Backup ", 0
 str_battery:		.db	"Battery: ", 0
+
 str_init_header:	.db	" PAULMON ", 0
 str_init_select:	.db	"Select console:", 0
 str_init_oyster:	.db	"       O - Oyster Terminal", 0
 str_init_serial:	.db	"       S - Serial", 0
+
+str_setup_header:	.db	"  SETUP  ", 0
+str_setup_screenkey:	.db	"   Screen/Keyboard   ", 0
+str_setup_datetime:	.db	"   Set Date/Time   ", 0
+str_setup_serial:	.db	"   Configure Serial   ", 0
+str_setup_power:	.db	"   Power Status   ", 0
 
 
 ; ###############################################################################################################
@@ -2573,9 +2605,6 @@ system_init_keyboard:
 	mov	keymap_offset, #0						; Select first keymap
 
 system_init_lcd:
-	mov	a, #4
-	lcall	lcd_set_contrast
-	lcall	lcd_set_backlight_on
 	lcall	lcd_init
 
 	mov	a, #10								; 1445 Hz
@@ -2630,7 +2659,6 @@ system_init_mode_select:
 system_init_mode_select_serial:
 	cjne	a, #'S',system_init_mode_select_oyster
 	clr	use_oysterlib
-	lcall	lcd_set_backlight_off
 	lcall	lcd_off
 	ret
 system_init_mode_select_oyster:
@@ -2642,3 +2670,4 @@ system_init_mode_select_oyster:
 system_init_mode_select_oyster_cls:
 	lcall	lcd_clear_screen
 	ret
+
