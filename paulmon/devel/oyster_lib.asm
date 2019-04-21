@@ -97,7 +97,8 @@
 .equ	tmp_var, 0x67
 ; 0x68-0x6B used by baud_save
 .equ	lcd_props_save, 0x6C							; Used to retain the backlight/contrast settings when the screen is off
-
+.equ	sys_props_save, 0x6D							; System config
+										;	0 - key_click
 
 ; Bit RAM definitions
 ; ##########################################################################
@@ -1057,7 +1058,7 @@ keyboard_read_key_make_keycode_update:
 
 	jnb	key_click, keyboard_read_key_make_keycode_check_mode		; Don't emit a key 'click' if disabled
 	push	acc
-	mov	a, #0x0e							; 7 kHz
+	mov	a, #0x0b							; 2 kHz
 	mov	b, #0x01							; 50 ms
 	lcall	piezo_beep
 	pop	acc
@@ -1124,7 +1125,11 @@ keyboard_click_toggle:
 ; #   Carry - When set, key clicks emit a tone
 ; ##########################################################################
 keyboard_click_set:
-	mov	key_click, c
+	mov	a, sys_props_save						; Save configuration
+	anl	a, #0xfe
+	mov	acc.0, c
+	mov	sys_props_save, a
+	mov	key_click, c							; Set flag
 	ret
 
 
@@ -1556,10 +1561,7 @@ lcd_set_properties_off:
 ; # Configures backlight/contrast to default values
 ; ##########################################################################
 lcd_set_properties_defaults:
-	lcall	serial_baudsave_check						; See if the values already exist
-	mov	a, #0x14							; Otherwise defaults, backlight on, contrast=4
-;	jnc	lcd_set_properties
-;	mov	a, lcd_props_save						; Get existing values
+	mov	a, lcd_props_save						; Get existing values
 ; # lcd_set_properties
 ; #
 ; # Updates the backlight/contrast of the LCD display
@@ -1953,6 +1955,34 @@ terminal_esc_cursor_right:
 	ljmp	cout
 
 .equ	esc_char, 0x1b
+
+; ###############################################################################################################
+; #                                                    System config functions
+; ###############################################################################################################
+
+
+; # system_config_save
+; #
+; # Saves the current system configuration
+; ##########################################################################
+system_config_save:
+	ret
+
+
+; # system_config_restore
+; #
+; # Restores the system configuration, or sets defaults
+; ##########################################################################
+system_config_restore:
+	lcall	serial_baudsave_check						; See if a baud rate is already configured
+	jc	system_config_restore_do
+	lcall	serial_baudsave_set_default					; Default baud rate
+	mov	lcd_props_save, #0x14						; LCD properties defaults, backlight on, contrast=4
+	mov	sys_props_save, #0x01						; Key click enabled
+system_config_restore_do:
+	mov	a, sys_props_save
+	mov	key_click, acc.0						; Restore key click
+	ret
 
 
 ; ###############################################################################################################
@@ -2640,6 +2670,8 @@ system_init:
 	setb	p1.6								; SCL
 	setb	p1.7								; SDA
 
+	lcall	system_config_restore						; Either restore an existing config, otherwise set defaults
+
 system_init_keyboard:
 	lcall	keyboard_reset
 	clr	keyboard_new_char
@@ -2706,10 +2738,6 @@ system_init_mode_select_serial:
 system_init_mode_select_oyster:
 	cjne	a, #'O',system_init_timeout_loop_setup
 	setb	use_oysterlib
-	lcall	serial_baudsave_check						; See if a baud rate is already configured
-	jc	system_init_mode_select_oyster_cls
-	lcall	serial_baudsave_set_default					; Otherwise set the default baud rate (and bypass auto detection)
-system_init_mode_select_oyster_cls:
 	lcall	lcd_clear_screen
 	ret
 
