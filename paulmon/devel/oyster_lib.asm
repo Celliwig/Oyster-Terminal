@@ -99,6 +99,7 @@
 .equ	lcd_props_save, 0x6C							; Used to retain the backlight/contrast settings when the screen is off
 .equ	sys_props_save, 0x6D							; System config
 										;	0 - key_click
+										; 	1 - Main serial port status
 
 ; Bit RAM definitions
 ; ##########################################################################
@@ -1664,16 +1665,21 @@ lcd_set_contrast_finish:
 ; # Enables the main serial port (P1) receivers
 ; ##########################################################################
 serial_mainport_enable:
-	setb	sfr_p4_80c562.7
-	ret
-
-
+	orl	sys_props_save, #0x02						; Set flag
+	sjmp	serial_mainport_set_state
 ; # serial_mainport_disable
 ; #
 ; # Disables the main serial port (P1) receivers
 ; ##########################################################################
 serial_mainport_disable:
+	anl	sys_props_save, #0xfd						; Clear flag
+serial_mainport_set_state:
+	mov	a, sys_props_save
+	mov	c, acc.1
 	clr	sfr_p4_80c562.7
+	jnc	serial_mainport_set_state_finish
+	setb	sfr_p4_80c562.7
+serial_mainport_set_state_finish:
 	ret
 
 
@@ -1778,7 +1784,7 @@ serial_baudsave_set:
 ; ##########################################################################
 power_battery_main_check_charging:
 	clr	c
-	jnb	sfr_p4_80c562.4, power_battery_main_check_charging_finish
+	jb	sfr_p4_80c562.4, power_battery_main_check_charging_finish
 	setb	c
 power_battery_main_check_charging_finish:
 	ret
@@ -1978,10 +1984,12 @@ system_config_restore:
 	jc	system_config_restore_do
 	lcall	serial_baudsave_set_default					; Default baud rate
 	mov	lcd_props_save, #0x14						; LCD properties defaults, backlight on, contrast=4
-	mov	sys_props_save, #0x01						; Key click enabled
+	mov	sys_props_save, #0x03						; Key click enabled, Serial port enabled
 system_config_restore_do:
 	mov	a, sys_props_save
-	mov	key_click, acc.0						; Restore key click
+	mov	c, acc.0
+	mov	key_click, c							; Restore key click
+	acall	serial_mainport_set_state					; Restore main serial port state
 	ret
 
 
@@ -2253,6 +2261,27 @@ glyph_double_size_conversion_table:
 	.db	0x00, 0x03, 0x0c, 0x0f, 0x30, 0x33, 0x3c, 0x3f
 	.db	0xc0, 0xc3, 0xcc, 0xcf, 0xf0, 0xf3, 0xfc, 0xff
 
+baud_rate_table:
+	.db	BAUD_19200
+	.db	BAUD_9600
+	.db	BAUD_4800
+	.db	BAUD_2400
+	.db	BAUD_1200
+	.db	BAUD_600
+	.db	BAUD_300
+	.db	BAUD_150
+
+.org	locat+0xBD0
+baud_rate_str_table:
+	.db	"19200", 0
+	.db	" 9600", 0
+	.db	" 4800", 0
+	.db	" 2400", 0
+	.db	" 1200", 0
+	.db	"  600", 0
+	.db	"  300", 0
+	.db	"  150", 0
+
 .org    locat+0xC00								; location defined so the different keymaps can easily be selected
 ; Keymap
 keycode_2_character_table1:
@@ -2403,7 +2432,10 @@ keycode_2_character_table3:
 	.db	0x09	; Right
 	.db	0x0d	; Enter
 
+str_enabled:		.db	"Enabled ", 0
+str_disabled:		.db	"Disabled", 0
 str_fail:		.db	"Fail", 0
+str_warn:		.db	"Warning", 0
 str_okay:		.db	"OK", 0
 str_skip:		.db	"Skip", 0
 str_present:		.db	"Present", 0
@@ -2432,6 +2464,13 @@ str_setupsk_header:	.db	"Screen/Keyboard", 0
 str_setupsk_contrast:	.db	0x0a,"/",0x0b," - Adjust contrast", 0
 str_setupsk_backlight:	.db	"  B - Toggle backlight", 0
 str_setupsk_keyclick:	.db	"  C - Toggle key click", 0
+str_setupsrl_header:	.db	"Serial", 0
+str_setupsrl_mport:	.db	"(M)ain port: ", 0
+str_setupsrl_baud:	.db	"(B)aud rate: ", 0
+str_setuppwr_header:	.db	"Power Status", 0
+str_setuppwr_cstatus:	.db	"Charging Status: ", 0
+str_setuppwr_charging:	.db	"Charging", 0
+str_setuppwr_charged:	.db	"Charged ", 0
 
 
 ; ###############################################################################################################
@@ -2930,9 +2969,151 @@ setup_datetime:
 ; # Serial
 ; #########
 setup_serial:
+	lcall	lcd_clear_screen
+	mov	tmp_var, #0x00
+
+setup_serial_loop:
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x00					; 1st row, 1st column
+	mov	dptr, #str_setupsrl_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+	clr	lcd_glyph_invert
+
+	mov	lcd_start_position, #0x67					; 4th row, 8th column
+	mov	dptr, #str_setupsrl_mport
+	lcall	lcd_pstr
+	mov	a, sys_props_save
+	anl	a, #0x02
+	mov	dptr, #str_disabled
+	jz	setup_serial_loop_print_mpstate
+	mov	dptr, #str_enabled
+setup_serial_loop_print_mpstate:
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0x87					; 5th row, 8th column
+	mov	dptr, #str_setupsrl_baud
+	lcall	lcd_pstr
+	mov	tmp_var, #0xff							; Baud rate pointer (setup so it rolls over)
+	mov	dptr, #baud_rate_table
+setup_serial_loop_baudrate_identify:
+	inc	tmp_var
+	mov	a, tmp_var							; Get current offset
+	movc	a, @a+dptr
+	subb	a, baud_save+3							; Subtract current baud rate to test if we have a match
+	jnz	setup_serial_loop_baudrate_identify
+	mov	a, tmp_var
+	mov	b, #0x06							; Size of baud strings
+	mul	ab
+	mov	dptr, #baud_rate_str_table
+	add	a, dpl								; Add calculated offset to pointer
+	mov	dpl, a
+	lcall	lcd_pstr
+
+setup_serial_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_serial_loop
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+setup_serial_keyboard_scan_b:
+	cjne	a, #0x08, setup_serial_keyboard_scan_m
+	inc	tmp_var								; Increment baud offset
+	mov	a, tmp_var
+	cjne	a, #0x08, setup_serial_keyboard_scan_b_set_baud			; Make sure we haven't overrun
+	mov	tmp_var, #0x00							; Reset offset
+setup_serial_keyboard_scan_b_set_baud:
+	mov	a, tmp_var
+	mov	dptr, #baud_rate_table
+	movc	a, @a+dptr							; Get new baud rate
+	lcall	serial_baudsave_set_reload					; Set new baud rate
+	sjmp	setup_serial_loop
+setup_serial_keyboard_scan_m:
+	cjne	a, #0x12, setup_serial_keyboard_scan_cancel
+	mov	a, sys_props_save						; Get saved bits
+	mov	c, acc.1							; Get the bit we're interested in
+	cpl	c								; Invert it
+	anl	sys_props_save, #0xfd						; Clear the current setting
+	jnc	setup_serial_keyboard_scan_m_set_mpstate
+	orl	sys_props_save, #0x02						; Set bit
+setup_serial_keyboard_scan_m_set_mpstate:
+	lcall	serial_mainport_set_state
+	ajmp	setup_serial_loop
+setup_serial_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_serial_keyboard_scan_other
 	ret
+setup_serial_keyboard_scan_other:
+	ajmp	setup_serial_loop
 
 ; # Power
 ; ########
 setup_power:
+	lcall	lcd_clear_screen
+	mov	tmp_var, #0
+
+setup_power_loop:
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x00					; 1st row, 1st column
+	mov	dptr, #str_setuppwr_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+	clr	lcd_glyph_invert
+
+	mov	lcd_start_position, #0x64					; 4th row, 5th column
+	mov	dptr, #str_setuppwr_cstatus
+	lcall	lcd_pstr
+	lcall	power_battery_main_check_charging
+	mov	dptr, #str_setuppwr_charged
+	jnc	setup_power_loop_print_cstatus
+	mov	dptr, #str_setuppwr_charging
+setup_power_loop_print_cstatus:
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0x85					; 4th row, 6th column
+	mov	dptr, #str_backup
+	lcall	lcd_pstr
+	mov	dptr, #str_battery
+	lcall	lcd_pstr
+	lcall	power_battery_backup_check_status
+	mov	dptr, #str_fail
+	jnc	setup_power_loop_print_bbattery
+	mov	dptr, #str_okay
+setup_power_loop_print_bbattery:
+	lcall	lcd_pstr
+
+	lcall	memory_ramcard_present						; Check if ram card is present
+	jnc	setup_power_keyboard_scan
+	mov	lcd_start_position, #0x81					; 4th row, 2nd column
+	mov	dptr, #str_memory_card
+	lcall	lcd_pstr
+	mov	dptr, #str_battery
+	lcall	lcd_pstr
+	lcall	power_battery_ramcard_check_status_warn
+	mov	dptr, #str_okay
+	jc	setup_power_loop_print_mcbattery
+	lcall	power_battery_ramcard_check_status_fail
+	mov	dptr, #str_fail
+	jnc	setup_power_loop_print_mcbattery
+	mov	dptr, #str_warn
+setup_power_loop_print_mcbattery:
+	lcall	lcd_pstr
+
+setup_power_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_power_loop
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+setup_power_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_power_keyboard_scan_other
 	ret
+setup_power_keyboard_scan_other:
+	ajmp	setup_power_loop
