@@ -834,22 +834,45 @@ rtc_set_alarm_config:
 ; #   Carry - error
 ; ##########################################################################
 rtc_init:
-	mov	a, #4								; 0b00000100 - Clock mode 32.768 kHz, alarm enabled
-	mov	b, #rtc_addr1
-	acall	rtc_set_config							; Config RTC1
-	jc	rtc_init_finish							; Exit on error
-	mov	a, #5								; Timer function: days, Alarm/Timer flag: no iterrupt, no timer alarm, no clock alarm
-	mov	b, #rtc_addr1
-	acall	rtc_set_alarm_config						; Config RTC1 alarm
-	jc	rtc_init_finish							; Exit on error
 	mov	a, #20h								; 0b00100000 - Event counter mode, alarm registers disable
 	mov	b, #rtc_addr2
 	acall	rtc_set_config							; Config RTC2
 	jc	rtc_init_finish							; Exit on error
+
+	mov	a, #5								; Timer function: days, Alarm/Timer flag: no iterrupt, no timer alarm, no clock alarm
+	mov	b, #rtc_addr1
+	acall	rtc_set_alarm_config						; Config RTC1 alarm
+	jc	rtc_init_finish							; Exit on error
+; # rtc_start
+; #
+; # Used in conjunction with rtc_stop when the date/time needs to be updated
+; ##########################################################################
+rtc_start:
+	mov	a, #4								; 0b00000100 - Clock mode 32.768 kHz, alarm enabled
+	mov	b, #rtc_addr1
+	acall	rtc_set_config							; Config RTC1
+	jc	rtc_init_finish							; Exit on error
+
 	clr	c
 rtc_init_finish:
 	ret
 
+
+; # rtc_stop
+; #
+; # Stops the RTC ticking
+; # Out:
+; #   Carry - error
+; ##########################################################################
+rtc_stop:
+	mov	a, #0x80							; Stop counting, disable alarm
+	mov	b, #rtc_addr1
+	acall	rtc_set_config							; Config RTC1
+	jc	rtc_stop_finish							; Exit on error
+
+	clr	c
+rtc_stop_finish:
+	ret
 
 ; # rtc_get_datetime
 ; #
