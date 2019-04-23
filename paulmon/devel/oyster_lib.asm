@@ -2005,6 +2005,8 @@ system_config_check_error:
 ; # system_config_save
 ; #
 ; # Saves the current system configuration
+; #  Out:
+; #   Carry - Set on error
 ; ##########################################################################
 system_config_save:
 	clr	a
@@ -2047,8 +2049,30 @@ system_config_save_finish:
 ; # Restores the system configuration, or sets defaults
 ; ##########################################################################
 system_config_restore:
-	lcall	serial_baudsave_check						; See if a baud rate is already configured
+	lcall	system_config_check						; See if system config data exists (Warm boot)
 	jc	system_config_restore_do
+
+system_config_restore_from_rtc:							; Try restoring data from RTC memory
+	mov	r1, #sys_config_start						; Register pointer
+	mov	a, #sys_config_start						; Read registers from their corresponding address in RTC RAM
+	mov	b, #rtc_addr1							; RTC i2c address
+	lcall	i2c_read_device_register
+	jc	system_config_restore_from_rtc_finish				; Just finish if there's an error
+system_config_restore_from_rtc_loop:
+	lcall	i2c_master_read_ack
+	mov	@r1, a								; Save byte
+	cjne	r1, #sys_config_end+2, system_config_restore_from_rtc_loop_cmp	; See if we have reached the end of the data we're interested in (+2 for the checksum)
+system_config_restore_from_rtc_loop_cmp:
+	jnc	system_config_restore_from_rtc_finish				; Will jump when previous operands are equal
+	inc	r1								; Increment pointer
+	lcall	i2c_read_byte
+	sjmp	system_config_restore_from_rtc_loop
+system_config_restore_from_rtc_finish:
+	lcall	i2c_stop
+
+	lcall	system_config_check						; Has this provided a valid system config (Cold boot)
+	jc	system_config_restore_do					; Otherwise set system defaults
+
 	lcall	serial_baudsave_set_default					; Default baud rate
 	mov	lcd_props_save, #0x14						; LCD properties defaults, backlight on, contrast=4
 	mov	sys_props_save, #0x03						; Key click enabled, Serial port enabled
@@ -2056,7 +2080,7 @@ system_config_restore_do:
 	mov	a, sys_props_save
 	mov	c, acc.0
 	mov	key_click, c							; Restore key click
-	acall	serial_mainport_set_state					; Restore main serial port state
+	lcall	serial_mainport_set_state					; Restore main serial port state
 	ret
 
 
@@ -2064,7 +2088,7 @@ system_config_restore_do:
 ; #                                                     General data
 ; ###############################################################################################################
 
-.org    locat+0x800
+.org    locat+0x900
 
 ascii_font_table:
 ascii_font_table_char_0:							; Null
@@ -2338,7 +2362,7 @@ baud_rate_table:
 	.db	BAUD_300
 	.db	BAUD_150
 
-.org	locat+0xBD0
+.org	locat+0xCD0
 baud_rate_str_table:
 	.db	"19200", 0
 	.db	" 9600", 0
@@ -2349,7 +2373,7 @@ baud_rate_str_table:
 	.db	"  300", 0
 	.db	"  150", 0
 
-.org    locat+0xC00								; location defined so the different keymaps can easily be selected
+.org    locat+0xD00								; location defined so the different keymaps can easily be selected
 ; Keymap
 keycode_2_character_table1:
 	.db	'A'	; A
