@@ -94,12 +94,20 @@
 .equ	mem_page_psen, 0x58							; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59							; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A							; Used to select the correct keymap
-.equ	tmp_var, 0x67
+.equ	tmp_var, 0x60
+.equ	current_year, 0x67							; The current year as an offset from 2000 (needed as the RTC only stores 2 bits for the year)
 ; 0x68-0x6B used by baud_save
 .equ	lcd_props_save, 0x6C							; Used to retain the backlight/contrast settings when the screen is off
 .equ	sys_props_save, 0x6D							; System config
 										;	0 - key_click
 										; 	1 - Main serial port status
+.equ	sys_cfg_chksum_inv, 0x6E						; Checksum (inverted) of the system configuration
+.equ	sys_cfg_checksum, 0x6F							; Checksum of the system configuration
+
+; Definitions for the system config save/restore rountines
+; So there is only one place to update
+.equ	sys_config_start, current_year
+.equ	sys_config_end, sys_props_save
 
 ; Bit RAM definitions
 ; ##########################################################################
@@ -210,10 +218,10 @@ serial_lib:
 	ajmp	serial_baudsave_set						; 0x0e
 ; power library functions
 power_lib:
-	ajmp	power_battery_main_check_charging
-	ajmp	power_battery_backup_check_status
-	ajmp	power_battery_ramcard_check_status_warn
-	ajmp	power_battery_ramcard_check_status_fail
+	ajmp	power_battery_main_check_charging				; 0x00
+	ajmp	power_battery_backup_check_status				; 0x02
+	ajmp	power_battery_ramcard_check_status_warn				; 0x04
+	ajmp	power_battery_ramcard_check_status_fail				; 0x06
 ; misc library functions
 misc_lib:
 	ajmp	piezo_beep							; 0x00
@@ -1967,11 +1975,70 @@ terminal_esc_cursor_right:
 ; ###############################################################################################################
 
 
+; # system_config_check
+; #
+; # Check whether the system config structure exists
+; #  Out:
+; #   Carry - Set if config exists
+; ##########################################################################
+system_config_check:
+	clr	a
+	mov	r0, #sys_config_start
+system_config_check_loop:
+	add	a, @r0
+	cjne	r0, #sys_config_end, system_config_check_loop_cmp
+system_config_check_loop_cmp:
+	jnc	system_config_check_checksum
+	inc	r0
+	sjmp	system_config_check_loop
+system_config_check_checksum:
+	cjne	a, sys_cfg_checksum, system_config_check_error
+	cpl	a
+	cjne	a, sys_cfg_chksum_inv, system_config_check_error
+	setb	c
+	ret
+system_config_check_error:
+	clr	c
+	ret
+
+
 ; # system_config_save
 ; #
 ; # Saves the current system configuration
 ; ##########################################################################
 system_config_save:
+	clr	a
+	mov	r0, #sys_config_start
+system_config_save_loop:
+	add	a, @r0
+	cjne	r0, #sys_config_end, system_config_save_loop_cmp
+system_config_save_loop_cmp:
+	jnc	system_config_save_checksum
+	inc	r0
+	sjmp	system_config_save_loop
+system_config_save_checksum:
+	mov	sys_cfg_checksum, a
+	cpl	a
+	mov	sys_cfg_chksum_inv, a
+
+system_config_save_2_rtc:
+	mov	r1, #sys_config_start						; Register pointer
+	mov	a, #sys_config_start						; Write registers to their corresponding address in RTC RAM
+	mov	b, #rtc_addr1							; RTC i2c address
+	lcall	i2c_write_byte_to_addr
+	jc	system_config_save_finish					; Just finish if there's an error
+system_config_save_2_rtc_loop:
+	mov	a, @r1								; Get a byte of config data
+	lcall	i2c_write_byte_with_ack_check					; Write to RTC memory
+	jc	system_config_save_finish					; Check for errors
+	cjne	r1, #sys_config_end+2, system_config_save_2_rtc_loop_cmp	; See if we have reached the end of the data we're interested in (+2 for the checksum)
+system_config_save_2_rtc_loop_cmp:
+	jnc	system_config_save_finish					; Will jump when previous operands are equal
+	inc	r1								; Increment pointer
+	sjmp	system_config_save_2_rtc_loop
+system_config_save_finish:
+	lcall	i2c_stop
+	clr	c
 	ret
 
 
@@ -2904,6 +2971,7 @@ setup_menu_loop_keyboard_scan_cancel:
 	jb	use_oysterlib, setup_menu_finish
 	lcall	lcd_off
 setup_menu_finish:
+	lcall	system_config_save						; Calculate checksums and save config to RTC memory
 	ret
 
 ; # Screen/Keyboard
