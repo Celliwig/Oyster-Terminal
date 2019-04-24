@@ -877,6 +877,22 @@ rtc_stop:
 rtc_stop_finish:
 	ret
 
+
+; # rtc_get_alarm_datetime
+; #
+; # Returns the alarm date/time registers (don't care about hundreths of a second)
+; # Out:
+; #   r0 - Seconds
+; #   r1 - Minutes
+; #   r2 - Hours
+; #   r3 - Day of the month
+; #   r4 - Month
+; #   r5 - Year (0-3)
+; #   Carry - error
+; ##########################################################################
+rtc_get_alarm_datetime:
+	mov	a, #0x0a							; Alarm seconds register
+	sjmp	rtc_get_datetime_main
 ; # rtc_get_datetime
 ; #
 ; # Returns the date/time registers (don't care about hundreths of a second)
@@ -891,6 +907,7 @@ rtc_stop_finish:
 ; ##########################################################################
 rtc_get_datetime:
 	mov	a, #2								; Seconds register
+rtc_get_datetime_main:
 	mov	b, #rtc_addr1
 	acall	i2c_read_device_register					; Get value
 	jc	rtc_get_datetime_finish
@@ -928,9 +945,29 @@ rtc_get_datetime_finish:
 	mov	r0, a
 	ret
 
+
+; # rtc_set_alarm_datetime
+; #
+; # Set the alarm date/time of the RTC.
+; # N.B. Need to disable the RTC before loading new datetime.
+; # In:
+; #   r0 - Seconds
+; #   r1 - Minutes
+; #   r2 - Hours
+; #   r3 - Day of the month
+; #   r4 - Month
+; #   r5 - Year (0-3)
+; # Out:
+; #   Carry - error
+; ##########################################################################
+rtc_set_alarm_datetime:
+	mov	a, r0								; Save for later (r0 used by i2c_*)
+	push	acc
+	mov	a, #0x09							; Alarm hundreths of a second
+	sjmp	rtc_set_datetime_main
 ; # rtc_set_datetime
 ; #
-; # Set the datetime of the RTC.
+; # Set the date/time of the RTC.
 ; # N.B. Need to disable the RTC before loading new datetime.
 ; # In:
 ; #   r0 - Seconds
@@ -946,6 +983,7 @@ rtc_set_datetime:
 	mov	a, r0								; Save for later (r0 used by i2c_*)
 	push	acc
 	mov	a, #1								; Hundreths of a second
+rtc_set_datetime_main:
 	mov	b, #rtc_addr1
 	acall	i2c_write_byte_to_addr						; Select register
 	jc	rtc_set_datetime_finish
@@ -953,24 +991,24 @@ rtc_set_datetime:
 	acall	i2c_write_byte_with_ack_check					; Load hundreths of a second
 	jc	rtc_set_datetime_finish
 	pop	acc
-	anl	a, #3fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
+;	anl	a, #3fh								; Make the value reasonable (if not correct)
+;	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load seconds
 	jc	rtc_set_datetime_finish
 	mov	a, r1
-	anl	a, #3fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
+;	anl	a, #3fh								; Make the value reasonable (if not correct)
+;	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load minutes
 	jc	rtc_set_datetime_finish
 	mov	a, r2
-	anl	a, #1fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
+;	anl	a, #1fh								; Make the value reasonable (if not correct)
+;	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load hours
 	jc	rtc_set_datetime_finish
 	mov	a, r3
-	anl	a, #1fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
-	anl	a, #3fh								; Make sure valid value
+;	anl	a, #1fh								; Make the value reasonable (if not correct)
+;	acall	hex_to_packed_bcd						; Convert for RTC register
+;	anl	a, #3fh								; Make sure valid value
 	mov	r0, a								; Store for later
 	mov	a, r5
 	anl	a, #3								; Make sure valid value
@@ -980,8 +1018,8 @@ rtc_set_datetime:
 	acall	i2c_write_byte_with_ack_check					; Load value
 	jc	rtc_set_datetime_finish
 	mov	a, r4
-	anl	a, #0fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
+;	anl	a, #0fh								; Make the value reasonable (if not correct)
+;	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load month
 	jc	rtc_set_datetime_finish
 	clr	c
@@ -3128,8 +3166,6 @@ setup_datetime:
 	lcall	lcd_clear_screen
 
 setup_datetime_loop:
-	lcall	rtc_get_datetime
-
 	setb	lcd_glyph_doublewidth
 	setb	lcd_glyph_doubleheight
 	setb	lcd_glyph_invert
@@ -3140,6 +3176,8 @@ setup_datetime_loop:
 	clr	lcd_glyph_doublewidth
 	clr	lcd_glyph_doubleheight
 	clr	lcd_glyph_invert
+
+	lcall	rtc_get_datetime
 
 	mov	lcd_start_position, #0x68					; 4th row, 9th column
 	mov	dptr, #str_setupdt_date
@@ -3174,18 +3212,50 @@ setup_datetime_loop:
 	mov	lcd_start_position, #0xa3					; 6th row, 4th column
 	mov	dptr, #str_setupdt_alarm
 	lcall	lcd_pstr
+	lcall	rtc_get_alarm_config
+	mov	dptr, #str_disabled
+	jnb	acc.7, setup_datetime_loop_alarm_sprint
+	mov	dptr, #str_enabled
+setup_datetime_loop_alarm_sprint:
+	lcall	lcd_pstr
+
+	lcall	rtc_get_alarm_datetime
 
 	mov	lcd_start_position, #0xc8					; 7th row, 9th column
 	mov	dptr, #str_setupdt_adate
 	lcall	lcd_pstr
+	mov	a, r3								; Get day
+	lcall	print_bcd_digit
+	mov	a, #'/'
+	lcall	oyster_cout
+	mov	a, r4								; Get month
+	lcall	print_bcd_digit
+	mov	a, #'/'
+	lcall	oyster_cout
+	mov	a, current_year							; Get the year we think it is
+	anl	a, 0xfc								; Lose the last 2 lsbs
+	orl	a, r5								; Add 2 lsbs from the RTC
+	lcall	print_bcd_digit
 
 	mov	lcd_start_position, #0xe8					; 8th row, 9th column
 	mov	dptr, #str_setupdt_atime
 	lcall	lcd_pstr
+	mov	a, r2
+	lcall	print_bcd_digit
+	mov	a, #':'
+	lcall	oyster_cout
+	mov	a, r1
+	lcall	print_bcd_digit
+	mov	a, #':'
+	lcall	oyster_cout
+	mov	a, r0
+	lcall	print_bcd_digit
 
 setup_datetime_keyboard_scan:
 	lcall	keyboard_scan
-	jnb	keyboard_new_char, setup_datetime_loop
+	jb	keyboard_new_char, setup_datetime_keyboard_scan_new_char
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_new_char:
 	clr	keyboard_new_char
 
 	mov	a, keycode_raw
