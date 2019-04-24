@@ -2096,6 +2096,7 @@ system_config_restore_from_rtc_finish:
 	lcall	system_config_check						; Has this provided a valid system config (Cold boot)
 	jc	system_config_restore_do					; Otherwise set system defaults
 
+	mov	current_year, #0x00						; Equivalent to y2k
 	lcall	serial_baudsave_set_default					; Default baud rate
 	mov	lcd_props_save, #0x14						; LCD properties defaults, backlight on, contrast=4
 	mov	sys_props_save, #0x03						; Key click enabled, Serial port enabled
@@ -2578,6 +2579,12 @@ str_setupsk_header:	.db	"Screen/Keyboard", 0
 str_setupsk_contrast:	.db	0x0a,"/",0x0b," - Adjust contrast", 0
 str_setupsk_backlight:	.db	"  B - Toggle backlight", 0
 str_setupsk_keyclick:	.db	"  C - Toggle key click", 0
+str_setupdt_header:	.db	"Date/Time", 0
+str_setupdt_date:	.db	"(D)ate : ", 0
+str_setupdt_time:	.db	"(T)ime : ", 0
+str_setupdt_alarm:	.db	"Alar(m)     : ", 0
+str_setupdt_adate:	.db	"D(a)te : ", 0
+str_setupdt_atime:	.db	"T(i)me : ", 0
 str_setupsrl_header:	.db	"Serial", 0
 str_setupsrl_mport:	.db	"(M)ain port: ", 0
 str_setupsrl_baud:	.db	"(B)aud rate: ", 0
@@ -3079,7 +3086,53 @@ setup_screenkey_keyboard_scan_cancel:
 ; # Date/Time
 ; ############
 setup_datetime:
+	lcall	lcd_clear_screen
+
+setup_datetime_loop:
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x00					; 1st row, 1st column
+	mov	dptr, #str_setupdt_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+	clr	lcd_glyph_invert
+
+	mov	lcd_start_position, #0x68					; 4th row, 9th column
+	mov	dptr, #str_setupdt_date
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0x88					; 5th row, 9th column
+	mov	dptr, #str_setupdt_time
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0xa3					; 6th row, 4th column
+	mov	dptr, #str_setupdt_alarm
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0xc8					; 7th row, 9th column
+	mov	dptr, #str_setupdt_adate
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0xe8					; 8th row, 9th column
+	mov	dptr, #str_setupdt_atime
+	lcall	lcd_pstr
+
+setup_datetime_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_datetime_keyboard_scan
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+;setup_datetime_keyboard_scan_b:
+;	cjne	a, #0x08, setup_datetime_keyboard_scan_m
+setup_datetime_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_datetime_keyboard_scan_other
 	ret
+setup_datetime_keyboard_scan_other:
+	ajmp	setup_datetime_loop
 
 ; # Serial
 ; #########
