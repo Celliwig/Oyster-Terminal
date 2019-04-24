@@ -842,7 +842,7 @@ rtc_init:
 	acall	rtc_set_config							; Config RTC2
 	jc	rtc_init_finish							; Exit on error
 
-	mov	a, #5								; Timer function: days, Alarm/Timer flag: no iterrupt, no timer alarm, no clock alarm
+	mov	a, #0x30							; Timer function: no timer, Alarm/Timer flag: no interrupt, no timer alarm, Clock alarm: dated alarm
 	mov	b, #rtc_addr1
 	acall	rtc_set_alarm_config						; Config RTC1 alarm
 	jc	rtc_init_finish							; Exit on error
@@ -3145,6 +3145,15 @@ setup_screenkey_keyboard_scan_cancel:
 
 ; # Date/Time
 ; ############
+; # tmp_var - used to hold the current editting mode
+;	7 - Reg. bank 3 loaded
+;	6 - Alarm date/time
+;	5 - Editting date
+;	4 - Editting time
+;	3 - 1st or 2nd digit
+;	2 - 1st number
+;	1 - 2nd	number
+;	0 - 3rd number
 setup_datetime:
 	orl	psw, #0b00001000						; Select the second register bank
 	lcall	lcd_clear_screen
@@ -3196,7 +3205,10 @@ setup_datetime_loop:
 	mov	lcd_start_position, #0xa3					; 6th row, 4th column
 	mov	dptr, #str_setupdt_alarm
 	lcall	lcd_pstr
+	mov	b, #rtc_addr1
 	lcall	rtc_get_alarm_config
+	mov	dptr, #str_fail
+	jc	setup_datetime_loop_alarm_sprint
 	mov	dptr, #str_disabled
 	jnb	acc.7, setup_datetime_loop_alarm_sprint
 	mov	dptr, #str_enabled
@@ -3243,8 +3255,31 @@ setup_datetime_keyboard_scan_new_char:
 	clr	keyboard_new_char
 
 	mov	a, keycode_raw
-;setup_datetime_keyboard_scan_b:
-;	cjne	a, #0x08, setup_datetime_keyboard_scan_m
+setup_datetime_keyboard_scan_m:
+	cjne	a, #0x12, setup_datetime_keyboard_scan_d
+	mov	b, #rtc_addr1
+	lcall	rtc_get_alarm_config						; Get the current alarm config
+	jc	setup_datetime_keyboard_scan_other				; Exit on error
+	mov	b, a								; Copy alarm config
+	anl	b, #0x7f							; Clear the alarm enable flag
+	cpl	a								; Toggle alarm enabled flag
+	anl	a, #0x80							; Extract just the alarm enabled flag
+	orl	a, b								; Combine alarm config with new alarm enabled flag state
+	mov	b, #rtc_addr1
+	lcall	rtc_set_alarm_config						; Write config back to RTC
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_d:
+	cjne	a, #0x18, setup_datetime_keyboard_scan_t
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_t:
+	cjne	a, #0x1b, setup_datetime_keyboard_scan_a
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_a:
+	cjne	a, #0x00, setup_datetime_keyboard_scan_i
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_i:
+	cjne	a, #0x21, setup_datetime_keyboard_scan_cancel
+	ajmp	setup_datetime_loop
 setup_datetime_keyboard_scan_cancel:
 	cjne	a, #0x07, setup_datetime_keyboard_scan_other
 	anl	psw, #0b11100111						; Return to 1st register bank
