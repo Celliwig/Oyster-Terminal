@@ -252,9 +252,10 @@ oyster_cout_do_character:
 	push	acc
 	mov	stack_carry_bit, c						; Save Carry to the stack
 	push	stack_carry
+	push	psw
 	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
 	acall	lcd_print_character
-	anl	psw, #0b11100111						; Restore register bank
+	pop	psw
 	pop	stack_carry							; Restore Carry
 	mov	c, stack_carry_bit
 	pop	acc
@@ -276,9 +277,10 @@ oyster_newline:
 	jnb	use_oysterlib, oyster_newline_serial
 	mov	stack_carry_bit, c						; Save Carry to the stack
 	push	stack_carry
+	push	psw
 	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
 	acall	lcd_new_line_scroll_and_clear
-	anl	psw, #0b11100111						; Restore register bank
+	pop	psw
 	mov	lcd_start_position, #0xE0					; Reset start position to first character last row
 	pop	stack_carry							; Restore Carry
 	mov	c, stack_carry_bit
@@ -301,9 +303,10 @@ oyster_cin:
 	jnb	use_oysterlib, oyster_cin_serial
 	mov	stack_carry_bit, c						; Save Carry to the stack
 	push	stack_carry
+	push	psw
 	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
 	acall	keyboard_wait_for_keypress
-	anl	psw, #0b11100111						; Restore register bank
+	pop	psw
 	mov	a, keycode_ascii						; Get ascii code
 	clr	keyboard_new_char						; Reset flag
 	pop	stack_carry							; Restore Carry
@@ -892,22 +895,22 @@ rtc_get_datetime:
 	acall	i2c_read_device_register					; Get value
 	jc	rtc_get_datetime_finish
 	acall	i2c_master_read_ack
-	acall	packed_bcd_to_hex						; Convert for system use
+;	acall	packed_bcd_to_hex						; Convert for system use
 	push	acc								; Store seconds for later (r0 used by i2c_*)
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
-	acall	packed_bcd_to_hex						; Convert for system use
+;	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r1, a								; Store minutes
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
 	anl	a, #3fh								; Make sure valid value (24h clock)
-	acall	packed_bcd_to_hex						; Convert for system use
+;	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r2, a								; Store hours
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
 	push	acc								; Store for later
 	anl	a,#3fh								; Lose year data
-	acall	packed_bcd_to_hex						; Convert for system use
+;	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r3, a								; Store day of the month
 	pop	acc								; Get original value
 	rl	a
@@ -916,7 +919,7 @@ rtc_get_datetime:
 	mov	r5, a								; Store year
 	acall	i2c_read_byte							; Get value
 	anl	a, #1fh								; Lose weekday data
-	acall	packed_bcd_to_hex						; Convert for system use
+;	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r4, a								; Store month
 	clr	c
 rtc_get_datetime_finish:
@@ -1565,6 +1568,8 @@ lcd_set_glyph_position_subscreen_config_next:
 ; ##########################################################################
 lcd_pstr:
 	push    acc
+	push	psw
+	orl	psw, #0b00011000
 lcd_pstr_next_char:
 	clr	a
 	movc	a, @a+dptr
@@ -1577,6 +1582,7 @@ lcd_pstr_next_char:
 	jb	acc.7, lcd_pstr_finish
 	sjmp	lcd_pstr_next_char
 lcd_pstr_finish:
+	pop	psw
 	pop	acc
 	ret
 
@@ -1683,6 +1689,30 @@ lcd_set_contrast:
 	orl	a, lcd_properties						; Merge other properties with new contrast value
 	acall	lcd_set_properties						; Set new value
 lcd_set_contrast_finish:
+	ret
+
+
+; ###############################################################################################################
+; #                                                   Print functions
+; ###############################################################################################################
+
+
+; # print_bcd
+; #
+; # Prints a BCD encoded digit (prints zeros as well)
+; # In:
+; #   A - Byte to print
+; ##########################################################################
+print_bcd_digit:
+	push	acc
+	anl	a, #0xf0							; First digit
+	swap	a
+	add	a, #'0'								; Make an ASCII character
+	lcall	oyster_cout
+	pop	acc
+	anl	a, #0x0f							; Second digit
+	add	a, #'0'								; Make an ASCII character
+	lcall	oyster_cout
 	ret
 
 
@@ -2924,7 +2954,9 @@ system_init_mode_select_oyster:
 ; # Menu
 ; #######
 setup:
+	push	stack_carry							; Save the use_oysterlib flag
 	jb	use_oysterlib, setup_menu_start
+	setb	use_oysterlib
 	lcall	lcd_init
 
 setup_menu_start:
@@ -3022,10 +3054,16 @@ setup_menu_loop_keyboard_scan_enter_other:
 	ajmp	setup_menu_loop
 setup_menu_loop_keyboard_scan_cancel:
 	cjne	a, #0x07, setup_menu_loop_keyboard_scan
+	lcall	system_config_save						; Calculate checksums and save config to RTC memory
+
+	pop	acc								; Get the use_oysterlib flag
+	mov	c, acc.0							; Restore use_oysterlib
+	mov	use_oysterlib, c
 	jb	use_oysterlib, setup_menu_finish
 	lcall	lcd_off
+	ret
 setup_menu_finish:
-	lcall	system_config_save						; Calculate checksums and save config to RTC memory
+	lcall	lcd_clear_screen
 	ret
 
 ; # Screen/Keyboard
@@ -3086,9 +3124,12 @@ setup_screenkey_keyboard_scan_cancel:
 ; # Date/Time
 ; ############
 setup_datetime:
+	orl	psw, #0b00001000						; Select the second register bank
 	lcall	lcd_clear_screen
 
 setup_datetime_loop:
+	lcall	rtc_get_datetime
+
 	setb	lcd_glyph_doublewidth
 	setb	lcd_glyph_doubleheight
 	setb	lcd_glyph_invert
@@ -3103,10 +3144,32 @@ setup_datetime_loop:
 	mov	lcd_start_position, #0x68					; 4th row, 9th column
 	mov	dptr, #str_setupdt_date
 	lcall	lcd_pstr
+	mov	a, r3								; Get day
+	lcall	print_bcd_digit
+	mov	a, #'/'
+	lcall	oyster_cout
+	mov	a, r4								; Get month
+	lcall	print_bcd_digit
+	mov	a, #'/'
+	lcall	oyster_cout
+	mov	a, current_year							; Get the year we think it is
+	anl	a, 0xfc								; Lose the last 2 lsbs
+	orl	a, r5								; Add 2 lsbs from the RTC
+	lcall	print_bcd_digit
 
 	mov	lcd_start_position, #0x88					; 5th row, 9th column
 	mov	dptr, #str_setupdt_time
 	lcall	lcd_pstr
+	mov	a, r2
+	lcall	print_bcd_digit
+	mov	a, #':'
+	lcall	oyster_cout
+	mov	a, r1
+	lcall	print_bcd_digit
+	mov	a, #':'
+	lcall	oyster_cout
+	mov	a, r0
+	lcall	print_bcd_digit
 
 	mov	lcd_start_position, #0xa3					; 6th row, 4th column
 	mov	dptr, #str_setupdt_alarm
@@ -3122,7 +3185,7 @@ setup_datetime_loop:
 
 setup_datetime_keyboard_scan:
 	lcall	keyboard_scan
-	jnb	keyboard_new_char, setup_datetime_keyboard_scan
+	jnb	keyboard_new_char, setup_datetime_loop
 	clr	keyboard_new_char
 
 	mov	a, keycode_raw
@@ -3130,6 +3193,7 @@ setup_datetime_keyboard_scan:
 ;	cjne	a, #0x08, setup_datetime_keyboard_scan_m
 setup_datetime_keyboard_scan_cancel:
 	cjne	a, #0x07, setup_datetime_keyboard_scan_other
+	anl	psw, #0b11100111						; Return to 1st register bank
 	ret
 setup_datetime_keyboard_scan_other:
 	ajmp	setup_datetime_loop
