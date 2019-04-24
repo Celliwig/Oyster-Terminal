@@ -912,22 +912,18 @@ rtc_get_datetime_main:
 	acall	i2c_read_device_register					; Get value
 	jc	rtc_get_datetime_finish
 	acall	i2c_master_read_ack
-;	acall	packed_bcd_to_hex						; Convert for system use
 	push	acc								; Store seconds for later (r0 used by i2c_*)
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
-;	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r1, a								; Store minutes
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
 	anl	a, #3fh								; Make sure valid value (24h clock)
-;	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r2, a								; Store hours
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
 	push	acc								; Store for later
 	anl	a,#3fh								; Lose year data
-;	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r3, a								; Store day of the month
 	pop	acc								; Get original value
 	rl	a
@@ -936,7 +932,6 @@ rtc_get_datetime_main:
 	mov	r5, a								; Store year
 	acall	i2c_read_byte							; Get value
 	anl	a, #1fh								; Lose weekday data
-;	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r4, a								; Store month
 	clr	c
 rtc_get_datetime_finish:
@@ -991,24 +986,15 @@ rtc_set_datetime_main:
 	acall	i2c_write_byte_with_ack_check					; Load hundreths of a second
 	jc	rtc_set_datetime_finish
 	pop	acc
-;	anl	a, #3fh								; Make the value reasonable (if not correct)
-;	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load seconds
 	jc	rtc_set_datetime_finish
 	mov	a, r1
-;	anl	a, #3fh								; Make the value reasonable (if not correct)
-;	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load minutes
 	jc	rtc_set_datetime_finish
 	mov	a, r2
-;	anl	a, #1fh								; Make the value reasonable (if not correct)
-;	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load hours
 	jc	rtc_set_datetime_finish
 	mov	a, r3
-;	anl	a, #1fh								; Make the value reasonable (if not correct)
-;	acall	hex_to_packed_bcd						; Convert for RTC register
-;	anl	a, #3fh								; Make sure valid value
 	mov	r0, a								; Store for later
 	mov	a, r5
 	anl	a, #3								; Make sure valid value
@@ -1018,8 +1004,6 @@ rtc_set_datetime_main:
 	acall	i2c_write_byte_with_ack_check					; Load value
 	jc	rtc_set_datetime_finish
 	mov	a, r4
-;	anl	a, #0fh								; Make the value reasonable (if not correct)
-;	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load month
 	jc	rtc_set_datetime_finish
 	clr	c
