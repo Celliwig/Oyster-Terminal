@@ -75,8 +75,42 @@
 
 ; RAM definitions
 ; ##########################################################################
+; Bank 0
+.equ	rb0r0, 0x00
 .equ	rb0r1, 0x01
 .equ	rb0r2, 0x02
+.equ	rb0r3, 0x03
+.equ	rb0r4, 0x04
+.equ	rb0r5, 0x05
+.equ	rb0r6, 0x06
+.equ	rb0r7, 0x07
+; Bank 1
+.equ	rb1r0, 0x08
+.equ	rb1r1, 0x09
+.equ	rb1r2, 0x0a
+.equ	rb1r3, 0x0b
+.equ	rb1r4, 0x0c
+.equ	rb1r5, 0x0d
+.equ	rb1r6, 0x0e
+.equ	rb1r7, 0x0f
+; Bank 2
+.equ	rb2r0, 0x10
+.equ	rb2r1, 0x11
+.equ	rb2r2, 0x12
+.equ	rb2r3, 0x13
+.equ	rb2r4, 0x14
+.equ	rb2r5, 0x15
+.equ	rb2r6, 0x16
+.equ	rb2r7, 0x17
+; Bank 3
+.equ	rb3r0, 0x18
+.equ	rb3r1, 0x19
+.equ	rb3r2, 0x1a
+.equ	rb3r3, 0x1b
+.equ	rb3r4, 0x1c
+.equ	rb3r5, 0x1d
+.equ	rb3r6, 0x1e
+.equ	rb3r7, 0x1f
 
 ; Bit addressable addresses (0x20-0x21 not used by MCS BASIC)
 .equ	stack_carry, 0x20							; Save Carry state here to load on the stack
@@ -3070,7 +3104,7 @@ setup_menu_loop_keyboard_scan_enter_serial:
 	ajmp	setup_menu_start
 setup_menu_loop_keyboard_scan_enter_power:
 	cjne	a, #0x03, setup_menu_loop_keyboard_scan_enter_other
-	acall	setup_power
+	lcall	setup_power
 	ajmp	setup_menu_start
 setup_menu_loop_keyboard_scan_enter_other:
 	ajmp	setup_menu_loop
@@ -3145,16 +3179,17 @@ setup_screenkey_keyboard_scan_cancel:
 
 ; # Date/Time
 ; ############
-; # tmp_var - used to hold the current editting mode
-;	7 - Reg. bank 3 loaded
+; # tmp_var - used to hold the current editting state
+;	7 - Reg. bank 2 loaded
 ;	6 - Alarm date/time
 ;	5 - Editting date
 ;	4 - Editting time
 ;	3 - 1st or 2nd digit
-;	2 - 1st number
+;	2 - 3rd number
 ;	1 - 2nd	number
-;	0 - 3rd number
+;	0 - 1st number
 setup_datetime:
+	mov	tmp_var, #0x00							; Reset edit state
 	orl	psw, #0b00001000						; Select the second register bank
 	lcall	lcd_clear_screen
 
@@ -3171,37 +3206,114 @@ setup_datetime_loop:
 	clr	lcd_glyph_invert
 
 	lcall	rtc_get_datetime
+	mov	a, tmp_var							; Check editting state
+	jz	setup_datetime_loop_print_dt					; If we're not doing anything just print
+	jb	acc.7, setup_datetime_loop_print_dt				; If we've already made a copy just print
+	jb	acc.6, setup_datetime_loop_print_dt				; If we're editting the alarm just print
+	lcall	copy_rb1_2_rb2							; Make a copy of this data
+	setb	acc.7								; Set state flag to show we have made a copy of the data
+	mov	tmp_var, a							; Save state
 
+setup_datetime_loop_print_dt:
+; Date
+	mov	a, tmp_var							; Check what we are editting
+	jz	setup_datetime_loop_print_date					; If we're not editting, just continue
+	jb	acc.6, setup_datetime_loop_print_date				; If we're editting the alarm, just continue
+	jnb	acc.5, setup_datetime_loop_print_date				; If we're not editting the date, just continue
+	anl	psw, #0b11100111						; We're editting the date
+	orl	psw, #0b00010000						; So select the third register bank
+setup_datetime_loop_print_date:
+	clr	lcd_glyph_invert
 	mov	lcd_start_position, #0x68					; 4th row, 9th column
 	mov	dptr, #str_setupdt_date
 	lcall	lcd_pstr
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_date_day				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_date_day			; Editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_date_day			; Not editting date, don't invert
+	jnb	acc.0, setup_datetime_loop_print_date_day			; Not editting day, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_date_day:
 	mov	a, r3								; Get day
 	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
 	mov	a, #'/'
 	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_date_month				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_date_month			; Editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_date_month			; Not editting date, don't invert
+	jnb	acc.1, setup_datetime_loop_print_date_month			; Not editting month, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_date_month:
 	mov	a, r4								; Get month
 	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
 	mov	a, #'/'
 	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_date_year				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_date_year			; Editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_date_year			; Not editting date, don't invert
+	jnb	acc.2, setup_datetime_loop_print_date_year			; Not editting year, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_date_year:
 	mov	a, current_year							; Get the year we think it is
 	anl	a, 0xfc								; Lose the last 2 lsbs
 	orl	a, r5								; Add 2 lsbs from the RTC
 	lcall	print_bcd_digit
+	anl	psw, #0b11100111						; Re-select the second register bank
+	orl	psw, #0b00001000
 
+; Time
+	mov	a, tmp_var							; Check what we are editting
+	jz	setup_datetime_loop_print_time					; If we're not editting, just continue
+	jb	acc.6, setup_datetime_loop_print_time				; If we're editting the alarm, just continue
+	jnb	acc.4, setup_datetime_loop_print_time				; If we're not editting the time, just continue
+	anl	psw, #0b11100111						; We're editting the time
+	orl	psw, #0b00010000						; So select the third register bank
+setup_datetime_loop_print_time:
+	clr	lcd_glyph_invert
 	mov	lcd_start_position, #0x88					; 5th row, 9th column
 	mov	dptr, #str_setupdt_time
 	lcall	lcd_pstr
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_time_hour				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_time_hour			; Editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_time_hour			; Not editting time, don't invert
+	jnb	acc.0, setup_datetime_loop_print_time_hour			; Not editting hour, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_time_hour:
 	mov	a, r2
 	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
 	mov	a, #':'
 	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_time_minute				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_time_minute			; Editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_time_minute			; Not editting time, don't invert
+	jnb	acc.1, setup_datetime_loop_print_time_minute			; Not editting minute, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_time_minute:
 	mov	a, r1
 	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
 	mov	a, #':'
 	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_time_second				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_time_second			; Editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_time_second			; Not editting time, don't invert
+	jnb	acc.2, setup_datetime_loop_print_time_second			; Not editting second, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_time_second:
 	mov	a, r0
 	lcall	print_bcd_digit
+	anl	psw, #0b11100111						; Re-select the second register bank
+	orl	psw, #0b00001000
 
+; Alarm status
 	mov	lcd_start_position, #0xa3					; 6th row, 4th column
 	mov	dptr, #str_setupdt_alarm
 	lcall	lcd_pstr
@@ -3216,36 +3328,113 @@ setup_datetime_loop_alarm_sprint:
 	lcall	lcd_pstr
 
 	lcall	rtc_get_alarm_datetime
+	mov	a, tmp_var							; Check editting state
+	jz	setup_datetime_loop_print_adt					; If we're not doing anything just print
+	jb	acc.7, setup_datetime_loop_print_adt				; If we've already made a copy just print
+	jnb	acc.6, setup_datetime_loop_print_adt				; If we're not editting the alarm just print
+	lcall	copy_rb1_2_rb2							; Make a copy of this data
+	setb	acc.7								; Set state flag to show we have made a copy of the data
+	mov	tmp_var, a							; Save state
 
+setup_datetime_loop_print_adt:
+; Alarm date
+	mov	a, tmp_var							; Check what we are editting
+	jz	setup_datetime_loop_print_adate					; If we're not editting, just continue
+	jnb	acc.6, setup_datetime_loop_print_adate				; If we're not editting the alarm, just continue
+	jnb	acc.5, setup_datetime_loop_print_adate				; If we're not editting the date, just continue
+	anl	psw, #0b11100111						; We're editting the date
+	orl	psw, #0b00010000						; So select the third register bank
+setup_datetime_loop_print_adate:
+	clr	lcd_glyph_invert
 	mov	lcd_start_position, #0xc8					; 7th row, 9th column
 	mov	dptr, #str_setupdt_adate
 	lcall	lcd_pstr
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_adate_day				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_adate_day			; Not editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_adate_day			; Not editting date, don't invert
+	jnb	acc.0, setup_datetime_loop_print_adate_day			; Not editting day, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_adate_day:
 	mov	a, r3								; Get day
 	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
 	mov	a, #'/'
 	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_adate_month				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_adate_month			; Not editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_adate_month			; Not editting date, don't invert
+	jnb	acc.1, setup_datetime_loop_print_adate_month			; Not editting month, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_adate_month:
 	mov	a, r4								; Get month
 	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
 	mov	a, #'/'
 	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_adate_year				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_adate_year			; Not editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_adate_year			; Not editting date, don't invert
+	jnb	acc.2, setup_datetime_loop_print_adate_year			; Not editting year, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_adate_year:
 	mov	a, current_year							; Get the year we think it is
 	anl	a, 0xfc								; Lose the last 2 lsbs
 	orl	a, r5								; Add 2 lsbs from the RTC
 	lcall	print_bcd_digit
+	anl	psw, #0b11100111						; Re-select the second register bank
+	orl	psw, #0b00001000
 
+; Alarm time
+	mov	a, tmp_var							; Check what we are editting
+	jz	setup_datetime_loop_print_atime					; If we're not editting, just continue
+	jnb	acc.6, setup_datetime_loop_print_atime				; If we're not editting the alarm, just continue
+	jnb	acc.4, setup_datetime_loop_print_atime				; If we're not editting the time, just continue
+	anl	psw, #0b11100111						; We're editting the time
+	orl	psw, #0b00010000						; So select the third register bank
+setup_datetime_loop_print_atime:
+	clr	lcd_glyph_invert
 	mov	lcd_start_position, #0xe8					; 8th row, 9th column
 	mov	dptr, #str_setupdt_atime
 	lcall	lcd_pstr
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_atime_hour				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_atime_hour			; Not editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_atime_hour			; Not editting time, don't invert
+	jnb	acc.0, setup_datetime_loop_print_atime_hour			; Not editting hour, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_atime_hour:
 	mov	a, r2
 	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
 	mov	a, #':'
 	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_atime_minute				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_atime_minute			; Not editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_atime_minute			; Not editting time, don't invert
+	jnb	acc.1, setup_datetime_loop_print_atime_minute			; Not editting minute, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_atime_minute:
 	mov	a, r1
 	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
 	mov	a, #':'
 	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_atime_second				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_atime_second			; Not editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_atime_second			; Not editting time, don't invert
+	jnb	acc.2, setup_datetime_loop_print_atime_second			; Not editting second, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_atime_second:
 	mov	a, r0
 	lcall	print_bcd_digit
+	anl	psw, #0b11100111						; Re-select the second register bank
+	orl	psw, #0b00001000
+
 
 setup_datetime_keyboard_scan:
 	lcall	keyboard_scan
@@ -3254,12 +3443,15 @@ setup_datetime_keyboard_scan:
 setup_datetime_keyboard_scan_new_char:
 	clr	keyboard_new_char
 
+; # Keyboard routine when view date/time data
+; ############################################
+setup_datetime_keyboard_scan_view:
 	mov	a, keycode_raw
-setup_datetime_keyboard_scan_m:
-	cjne	a, #0x12, setup_datetime_keyboard_scan_d
+setup_datetime_keyboard_scan_view_m:
+	cjne	a, #0x12, setup_datetime_keyboard_scan_view_d
 	mov	b, #rtc_addr1
 	lcall	rtc_get_alarm_config						; Get the current alarm config
-	jc	setup_datetime_keyboard_scan_other				; Exit on error
+	jc	setup_datetime_keyboard_scan_view_other				; Exit on error
 	mov	b, a								; Copy alarm config
 	anl	b, #0x7f							; Clear the alarm enable flag
 	cpl	a								; Toggle alarm enabled flag
@@ -3268,24 +3460,50 @@ setup_datetime_keyboard_scan_m:
 	mov	b, #rtc_addr1
 	lcall	rtc_set_alarm_config						; Write config back to RTC
 	ajmp	setup_datetime_loop
-setup_datetime_keyboard_scan_d:
-	cjne	a, #0x18, setup_datetime_keyboard_scan_t
+setup_datetime_keyboard_scan_view_d:
+	cjne	a, #0x18, setup_datetime_keyboard_scan_view_t
+	mov	tmp_var, #0x21
 	ajmp	setup_datetime_loop
-setup_datetime_keyboard_scan_t:
-	cjne	a, #0x1b, setup_datetime_keyboard_scan_a
+setup_datetime_keyboard_scan_view_t:
+	cjne	a, #0x1b, setup_datetime_keyboard_scan_view_a
+	mov	tmp_var, #0x11
 	ajmp	setup_datetime_loop
-setup_datetime_keyboard_scan_a:
-	cjne	a, #0x00, setup_datetime_keyboard_scan_i
+setup_datetime_keyboard_scan_view_a:
+	cjne	a, #0x00, setup_datetime_keyboard_scan_view_i
+	mov	tmp_var, #0x61
 	ajmp	setup_datetime_loop
-setup_datetime_keyboard_scan_i:
-	cjne	a, #0x21, setup_datetime_keyboard_scan_cancel
+setup_datetime_keyboard_scan_view_i:
+	cjne	a, #0x21, setup_datetime_keyboard_scan_view_cancel
+	mov	tmp_var, #0x51
 	ajmp	setup_datetime_loop
-setup_datetime_keyboard_scan_cancel:
-	cjne	a, #0x07, setup_datetime_keyboard_scan_other
+setup_datetime_keyboard_scan_view_cancel:
+	cjne	a, #0x07, setup_datetime_keyboard_scan_view_other
 	anl	psw, #0b11100111						; Return to 1st register bank
 	ret
-setup_datetime_keyboard_scan_other:
+setup_datetime_keyboard_scan_view_other:
 	ajmp	setup_datetime_loop
+
+; # Routine to copy the entire register bank 2 to bank 3
+; #######################################################
+copy_rb1_2_rb2:
+;	mov	rb2r0, rb1r0
+;	mov	rb2r1, rb1r1
+;	mov	rb2r2, rb1r2
+;	mov	rb2r3, rb1r3
+;	mov	rb2r4, rb1r4
+;	mov	rb2r5, rb1r5
+;	mov	rb2r6, rb1r6
+;	mov	rb2r7, rb1r7
+
+	mov	rb2r0, #0x00
+	mov	rb2r1, #0x11
+	mov	rb2r2, #0x22
+	mov	rb2r3, #0x33
+	mov	rb2r4, #0x44
+	mov	rb2r5, #0x55
+	mov	rb2r6, #0x66
+	mov	rb2r7, #0x77
+	ret
 
 ; # Serial
 ; #########
@@ -3363,12 +3581,12 @@ setup_serial_keyboard_scan_m:
 	orl	sys_props_save, #0x02						; Set bit
 setup_serial_keyboard_scan_m_set_mpstate:
 	lcall	serial_mainport_set_state
-	ajmp	setup_serial_loop
+	ljmp	setup_serial_loop
 setup_serial_keyboard_scan_cancel:
 	cjne	a, #0x07, setup_serial_keyboard_scan_other
 	ret
 setup_serial_keyboard_scan_other:
-	ajmp	setup_serial_loop
+	ljmp	setup_serial_loop
 
 ; # Power
 ; ########
