@@ -2633,52 +2633,6 @@ keycode_2_character_table3:
 	.db	0x09	; Right
 	.db	0x0d	; Enter
 
-str_enabled:		.db	"Enabled ", 0
-str_disabled:		.db	"Disabled", 0
-str_fail:		.db	"Fail", 0
-str_warn:		.db	"Warning", 0
-str_okay:		.db	"OK", 0
-str_skip:		.db	"Skip", 0
-str_present:		.db	"Present", 0
-str_na:			.db	"N/A", 0
-str_cfg_mem:		.db	"Config memory: ", 0
-str_tst_mem:		.db	"Testing memory bank [", 0
-str_memory_card:	.db	"Memory Card", 0
-str_read_only:		.db	"Read Only", 0
-str_rtc:		.db	"RTC init: ", 0
-str_timeout:		.db	"Timeout: ", 0
-;str_keyb:		.db	"Keyboard init: ", 0
-str_backup:		.db	"Backup ", 0
-str_battery:		.db	"Battery: ", 0
-
-str_init_header:	.db	" PAULMON ", 0
-str_init_select:	.db	"Select console:", 0
-str_init_oyster:	.db	"       O - Oyster Terminal", 0
-str_init_serial:	.db	"       S - Serial", 0
-
-str_setup_header:	.db	"  SETUP  ", 0
-str_setup_screenkey:	.db	"   Screen/Keyboard   ", 0
-str_setup_datetime:	.db	"   Set Date/Time   ", 0
-str_setup_serial:	.db	"   Configure Serial   ", 0
-str_setup_power:	.db	"   Power Status   ", 0
-str_setupsk_header:	.db	"Screen/Keyboard", 0
-str_setupsk_contrast:	.db	0x0a,"/",0x0b," - Adjust contrast", 0
-str_setupsk_backlight:	.db	"  B - Toggle backlight", 0
-str_setupsk_keyclick:	.db	"  C - Toggle key click", 0
-str_setupdt_header:	.db	"Date/Time", 0
-str_setupdt_date:	.db	"(D)ate : ", 0
-str_setupdt_time:	.db	"(T)ime : ", 0
-str_setupdt_alarm:	.db	"Alar(m)     : ", 0
-str_setupdt_adate:	.db	"D(a)te : ", 0
-str_setupdt_atime:	.db	"T(i)me : ", 0
-str_setupsrl_header:	.db	"Serial", 0
-str_setupsrl_mport:	.db	"(M)ain port: ", 0
-str_setupsrl_baud:	.db	"(B)aud rate: ", 0
-str_setuppwr_header:	.db	"Power Status", 0
-str_setuppwr_cstatus:	.db	"Charging Status: ", 0
-str_setuppwr_charging:	.db	"Charging", 0
-str_setuppwr_charged:	.db	"Charged ", 0
-
 
 ; ###############################################################################################################
 ; #                                                     OysterLib ISVs
@@ -3444,7 +3398,8 @@ setup_datetime_keyboard_scan_new_char:
 	clr	keyboard_new_char
 
 	mov	a, tmp_var							; Check whether we are editting
-	jz	setup_datetime_keyboard_scan_view
+	jnz	setup_datetime_keyboard_scan_edit
+	ljmp	setup_datetime_keyboard_scan_view
 
 ; # Keyboard routine when editing date/time data
 ; ###############################################
@@ -3482,8 +3437,40 @@ setup_datetime_keyboard_scan_edit_rarrow_finish:
 	ajmp	setup_datetime_loop
 setup_datetime_keyboard_scan_edit_enter:
 	cjne	a, #0x2f, setup_datetime_keyboard_scan_edit_ascii		; If enter pressed
+
+	mov	a, tmp_var							; Do we need to adjust the date (because RTC only stores 2 bits)
+	
+
+
+	mov	a, tmp_var							; Need to load the original data
+	jb	acc.6, setup_datetime_keyboard_scan_edit_enter_get_adt		; So are we editing the alarm?
+	lcall	rtc_get_datetime
+	sjmp	setup_datetime_keyboard_scan_edit_enter_merge
+setup_datetime_keyboard_scan_edit_enter_get_adt:
+	lcall	rtc_get_alarm_datetime
+setup_datetime_keyboard_scan_edit_enter_merge:					; Now we need to merge the data
+	mov	a, tmp_var
+	jb	acc.4, setup_datetime_keyboard_scan_edit_enter_merge_time	; Are we editing the time
+setup_datetime_keyboard_scan_edit_enter_merge_date:
+	mov	rb1r3, rb2r3							; Copy day
+	mov	rb1r4, rb2r4							; Copy month
+	mov	rb1r5, rb2r5							; Copy year
+	sjmp	setup_datetime_keyboard_scan_edit_enter_update_rtc
+setup_datetime_keyboard_scan_edit_enter_merge_time:
+	mov	rb1r0, rb2r0							; Copy seconds
+	mov	rb1r1, rb2r1							; Copy minutes
+	mov	rb1r2, rb2r2							; Copy hours
+setup_datetime_keyboard_scan_edit_enter_update_rtc:
+	jb	acc.6, setup_datetime_keyboard_scan_edit_enter_update_rtc_alarm
+	lcall	rtc_stop
+	lcall	rtc_set_datetime
+	lcall	rtc_start
+	sjmp	setup_datetime_keyboard_scan_edit_enter_finish
+setup_datetime_keyboard_scan_edit_enter_update_rtc_alarm:
+	lcall	rtc_set_alarm_datetime
+setup_datetime_keyboard_scan_edit_enter_finish:
 	mov	tmp_var, #0x00							; Stop editing
-	ajmp	setup_datetime_loop
+	ljmp	setup_datetime_loop
 setup_datetime_keyboard_scan_edit_ascii:
 	mov	a, keycode_ascii						; Now check for ASCII characters
 	cjne	a, #'0', setup_datetime_keyboard_scan_edit_ascii_cmp		; Check for characters less than '0'
@@ -3508,7 +3495,7 @@ setup_datetime_keyboard_scan_edit_ascii_digit_check_next:
 	cpl	acc.3								; Select next digit
 	mov	tmp_var, a							; Save state
 setup_datetime_keyboard_scan_edit_other:
-	ajmp	setup_datetime_loop
+	ljmp	setup_datetime_loop
 
 ; # Keyboard routine when viewing date/time data
 ; ###############################################
@@ -3559,8 +3546,6 @@ setup_datetime_copy_rb1_2_rb2:
 	mov	rb2r3, rb1r3
 	mov	rb2r4, rb1r4
 	mov	rb2r5, rb1r5
-	mov	rb2r6, rb1r6
-	mov	rb2r7, rb1r7
 	ret
 
 ; # Routine to update a single digit in the copy of date/time
@@ -3909,3 +3894,55 @@ setup_power_keyboard_scan_cancel:
 	ret
 setup_power_keyboard_scan_other:
 	ajmp	setup_power_loop
+
+
+; ###############################################################################################################
+; #                                                     Strings
+; ###############################################################################################################
+
+str_setup_header:	.db	"  SETUP  ", 0
+str_setup_screenkey:	.db	"   Screen/Keyboard   ", 0
+str_setup_datetime:	.db	"   Set Date/Time   ", 0
+str_setup_serial:	.db	"   Configure Serial   ", 0
+str_setup_power:	.db	"   Power Status   ", 0
+str_setupsk_header:	.db	"Screen/Keyboard", 0
+str_setupsk_contrast:	.db	0x0a,"/",0x0b," - Adjust contrast", 0
+str_setupsk_backlight:	.db	"  B - Toggle backlight", 0
+str_setupsk_keyclick:	.db	"  C - Toggle key click", 0
+str_setupdt_header:	.db	"Date/Time", 0
+str_setupdt_date:	.db	"(D)ate : ", 0
+str_setupdt_time:	.db	"(T)ime : ", 0
+str_setupdt_alarm:	.db	"Alar(m)     : ", 0
+str_setupdt_adate:	.db	"D(a)te : ", 0
+str_setupdt_atime:	.db	"T(i)me : ", 0
+str_setupsrl_header:	.db	"Serial", 0
+str_setupsrl_mport:	.db	"(M)ain port: ", 0
+str_setupsrl_baud:	.db	"(B)aud rate: ", 0
+str_setuppwr_header:	.db	"Power Status", 0
+str_setuppwr_cstatus:	.db	"Charging Status: ", 0
+str_setuppwr_charging:	.db	"Charging", 0
+str_setuppwr_charged:	.db	"Charged ", 0
+
+str_enabled:		.db	"Enabled ", 0
+str_disabled:		.db	"Disabled", 0
+str_fail:		.db	"Fail", 0
+str_warn:		.db	"Warning", 0
+str_okay:		.db	"OK", 0
+str_skip:		.db	"Skip", 0
+str_present:		.db	"Present", 0
+str_na:			.db	"N/A", 0
+str_cfg_mem:		.db	"Config memory: ", 0
+str_tst_mem:		.db	"Testing memory bank [", 0
+str_memory_card:	.db	"Memory Card", 0
+str_read_only:		.db	"Read Only", 0
+str_rtc:		.db	"RTC init: ", 0
+str_timeout:		.db	"Timeout: ", 0
+;str_keyb:		.db	"Keyboard init: ", 0
+str_backup:		.db	"Backup ", 0
+str_battery:		.db	"Battery: ", 0
+
+str_init_header:	.db	" PAULMON ", 0
+str_init_select:	.db	"Select console:", 0
+str_init_oyster:	.db	"       O - Oyster Terminal", 0
+str_init_serial:	.db	"       S - Serial", 0
+
