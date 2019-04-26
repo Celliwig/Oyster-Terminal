@@ -3100,7 +3100,7 @@ setup_menu_loop_keyboard_scan_enter_datetime:
 	ajmp	setup_menu_start
 setup_menu_loop_keyboard_scan_enter_serial:
 	cjne	a, #0x02, setup_menu_loop_keyboard_scan_enter_power
-	acall	setup_serial
+	lcall	setup_serial
 	ajmp	setup_menu_start
 setup_menu_loop_keyboard_scan_enter_power:
 	cjne	a, #0x03, setup_menu_loop_keyboard_scan_enter_other
@@ -3210,7 +3210,7 @@ setup_datetime_loop:
 	jz	setup_datetime_loop_print_dt					; If we're not doing anything just print
 	jb	acc.7, setup_datetime_loop_print_dt				; If we've already made a copy just print
 	jb	acc.6, setup_datetime_loop_print_dt				; If we're editting the alarm just print
-	lcall	copy_rb1_2_rb2							; Make a copy of this data
+	lcall	setup_datetime_copy_rb1_2_rb2					; Make a copy of this data
 	setb	acc.7								; Set state flag to show we have made a copy of the data
 	mov	tmp_var, a							; Save state
 
@@ -3314,6 +3314,7 @@ setup_datetime_loop_print_time_second:
 	orl	psw, #0b00001000
 
 ; Alarm status
+	clr	lcd_glyph_invert
 	mov	lcd_start_position, #0xa3					; 6th row, 4th column
 	mov	dptr, #str_setupdt_alarm
 	lcall	lcd_pstr
@@ -3332,7 +3333,7 @@ setup_datetime_loop_alarm_sprint:
 	jz	setup_datetime_loop_print_adt					; If we're not doing anything just print
 	jb	acc.7, setup_datetime_loop_print_adt				; If we've already made a copy just print
 	jnb	acc.6, setup_datetime_loop_print_adt				; If we're not editting the alarm just print
-	lcall	copy_rb1_2_rb2							; Make a copy of this data
+	lcall	setup_datetime_copy_rb1_2_rb2					; Make a copy of this data
 	setb	acc.7								; Set state flag to show we have made a copy of the data
 	mov	tmp_var, a							; Save state
 
@@ -3414,7 +3415,7 @@ setup_datetime_loop_print_atime_hour:
 	mov	a, tmp_var							; Check whether to invert the digit field
 	jz	setup_datetime_loop_print_atime_minute				; Not editting, don't invert
 	jnb	acc.6, setup_datetime_loop_print_atime_minute			; Not editting alarm, don't invert
-	jnb	acc.5, setup_datetime_loop_print_atime_minute			; Not editting time, don't invert
+	jnb	acc.4, setup_datetime_loop_print_atime_minute			; Not editting time, don't invert
 	jnb	acc.1, setup_datetime_loop_print_atime_minute			; Not editting minute, don't invert
 	setb	lcd_glyph_invert
 setup_datetime_loop_print_atime_minute:
@@ -3426,7 +3427,7 @@ setup_datetime_loop_print_atime_minute:
 	mov	a, tmp_var							; Check whether to invert the digit field
 	jz	setup_datetime_loop_print_atime_second				; Not editting, don't invert
 	jnb	acc.6, setup_datetime_loop_print_atime_second			; Not editting alarm, don't invert
-	jnb	acc.5, setup_datetime_loop_print_atime_second			; Not editting time, don't invert
+	jnb	acc.4, setup_datetime_loop_print_atime_second			; Not editting time, don't invert
 	jnb	acc.2, setup_datetime_loop_print_atime_second			; Not editting second, don't invert
 	setb	lcd_glyph_invert
 setup_datetime_loop_print_atime_second:
@@ -3435,7 +3436,6 @@ setup_datetime_loop_print_atime_second:
 	anl	psw, #0b11100111						; Re-select the second register bank
 	orl	psw, #0b00001000
 
-
 setup_datetime_keyboard_scan:
 	lcall	keyboard_scan
 	jb	keyboard_new_char, setup_datetime_keyboard_scan_new_char
@@ -3443,8 +3443,75 @@ setup_datetime_keyboard_scan:
 setup_datetime_keyboard_scan_new_char:
 	clr	keyboard_new_char
 
-; # Keyboard routine when view date/time data
-; ############################################
+	mov	a, tmp_var							; Check whether we are editting
+	jz	setup_datetime_keyboard_scan_view
+
+; # Keyboard routine when editing date/time data
+; ###############################################
+setup_datetime_keyboard_scan_edit:
+	mov	a, keycode_raw							; First check for non ASCII keycodes
+setup_datetime_keyboard_scan_edit_cancel:
+	cjne	a, #0x07, setup_datetime_keyboard_scan_edit_larrow		; If cancel pressed
+	mov	tmp_var, #0x00							; Stop editing
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_edit_larrow:
+	cjne	a, #0x2d, setup_datetime_keyboard_scan_edit_rarrow		; If left arrow pressed
+	mov	a, tmp_var							; Get the current editting state
+	jb	acc.0, setup_datetime_keyboard_scan_edit_larrow_finish		; If we are already at the start, don't do anything
+	mov	b, a								; Copy state
+	anl	a, #0x07							; Filter everything but digit flags
+	anl	b, #0xf8							; Clear digit flags
+	rr	a								; Go back one digit
+	orl	a, b								; Recombine digit flags and the rest of the edit state
+	clr	acc.3								; We've moved digit so reset which character we're editing
+	mov	tmp_var, a							; Save state
+setup_datetime_keyboard_scan_edit_larrow_finish:
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_edit_rarrow:
+	cjne	a, #0x2e, setup_datetime_keyboard_scan_edit_enter		; If right arrow pressed
+	mov	a, tmp_var							; Get the current editting state
+	jb	acc.2, setup_datetime_keyboard_scan_edit_rarrow_finish		; If we are already at the end, don't do anything
+	mov	b, a								; Copy state
+	anl	a, #0x07							; Filter everything but digit flags
+	anl	b, #0xf8							; Clear digit flags
+	rl	a								; Go forward one digit
+	orl	a, b								; Recombine digit flags and the rest of the edit state
+	clr	acc.3								; We've moved digit so reset which character we're editing
+	mov	tmp_var, a							; Save state
+setup_datetime_keyboard_scan_edit_rarrow_finish:
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_edit_enter:
+	cjne	a, #0x2f, setup_datetime_keyboard_scan_edit_ascii		; If enter pressed
+	mov	tmp_var, #0x00							; Stop editing
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_edit_ascii:
+	mov	a, keycode_ascii						; Now check for ASCII characters
+	cjne	a, #'0', setup_datetime_keyboard_scan_edit_ascii_cmp		; Check for characters less than '0'
+setup_datetime_keyboard_scan_edit_ascii_cmp:
+	jc	setup_datetime_keyboard_scan_edit_other				; Not a digit so loop
+	subb	a, #'0'								; Convert character to integer
+	cjne	a, #0x0a, setup_datetime_keyboard_scan_edit_ascii_digit_check	; Check whether a digit
+setup_datetime_keyboard_scan_edit_ascii_digit_check:
+	jnc	setup_datetime_keyboard_scan_edit_other				; Not a digit so loop
+	mov	b, a								; Copy the integer
+	lcall	setup_datetime_updaterb2					; Update the relavent digit
+	jc	setup_datetime_keyboard_scan_edit_other				; On error, loop
+	mov	a, tmp_var
+	jnb	acc.3, setup_datetime_keyboard_scan_edit_ascii_digit_check_next	; Check whether to select next field
+	jb	acc.2, setup_datetime_keyboard_scan_edit_ascii_digit_check_next	; If the last field is already selected don't update
+	mov	b, a								; Copy value
+	anl	a, #0x07							; Filter everything but digit flags
+	anl	b, #0xf8							; Clear digit flags
+	rl	a								; Go forward one digit
+	orl	a, b								; Recombine digit flags and the rest of the edit state
+setup_datetime_keyboard_scan_edit_ascii_digit_check_next:
+	cpl	acc.3								; Select next digit
+	mov	tmp_var, a							; Save state
+setup_datetime_keyboard_scan_edit_other:
+	ajmp	setup_datetime_loop
+
+; # Keyboard routine when viewing date/time data
+; ###############################################
 setup_datetime_keyboard_scan_view:
 	mov	a, keycode_raw
 setup_datetime_keyboard_scan_view_m:
@@ -3459,51 +3526,237 @@ setup_datetime_keyboard_scan_view_m:
 	orl	a, b								; Combine alarm config with new alarm enabled flag state
 	mov	b, #rtc_addr1
 	lcall	rtc_set_alarm_config						; Write config back to RTC
-	ajmp	setup_datetime_loop
+	ljmp	setup_datetime_loop
 setup_datetime_keyboard_scan_view_d:
 	cjne	a, #0x18, setup_datetime_keyboard_scan_view_t
 	mov	tmp_var, #0x21
-	ajmp	setup_datetime_loop
+	ljmp	setup_datetime_loop
 setup_datetime_keyboard_scan_view_t:
 	cjne	a, #0x1b, setup_datetime_keyboard_scan_view_a
 	mov	tmp_var, #0x11
-	ajmp	setup_datetime_loop
+	ljmp	setup_datetime_loop
 setup_datetime_keyboard_scan_view_a:
 	cjne	a, #0x00, setup_datetime_keyboard_scan_view_i
 	mov	tmp_var, #0x61
-	ajmp	setup_datetime_loop
+	ljmp	setup_datetime_loop
 setup_datetime_keyboard_scan_view_i:
 	cjne	a, #0x21, setup_datetime_keyboard_scan_view_cancel
 	mov	tmp_var, #0x51
-	ajmp	setup_datetime_loop
+	ljmp	setup_datetime_loop
 setup_datetime_keyboard_scan_view_cancel:
 	cjne	a, #0x07, setup_datetime_keyboard_scan_view_other
 	anl	psw, #0b11100111						; Return to 1st register bank
 	ret
 setup_datetime_keyboard_scan_view_other:
-	ajmp	setup_datetime_loop
+	ljmp	setup_datetime_loop
 
 ; # Routine to copy the entire register bank 2 to bank 3
 ; #######################################################
-copy_rb1_2_rb2:
-;	mov	rb2r0, rb1r0
-;	mov	rb2r1, rb1r1
-;	mov	rb2r2, rb1r2
-;	mov	rb2r3, rb1r3
-;	mov	rb2r4, rb1r4
-;	mov	rb2r5, rb1r5
-;	mov	rb2r6, rb1r6
-;	mov	rb2r7, rb1r7
-
-	mov	rb2r0, #0x00
-	mov	rb2r1, #0x11
-	mov	rb2r2, #0x22
-	mov	rb2r3, #0x33
-	mov	rb2r4, #0x44
-	mov	rb2r5, #0x55
-	mov	rb2r6, #0x66
-	mov	rb2r7, #0x77
+setup_datetime_copy_rb1_2_rb2:
+	mov	rb2r0, rb1r0
+	mov	rb2r1, rb1r1
+	mov	rb2r2, rb1r2
+	mov	rb2r3, rb1r3
+	mov	rb2r4, rb1r4
+	mov	rb2r5, rb1r5
+	mov	rb2r6, rb1r6
+	mov	rb2r7, rb1r7
 	ret
+
+; # Routine to update a single digit in the copy of date/time
+; #
+; # In:
+; #   B - Contains the digit that was read in (assume 0-9)
+; #   RB2 - Copy of the date/time to update
+; # Out:
+; #   Carry - Error
+; ############################################################
+setup_datetime_updaterb2:
+	mov	a, tmp_var
+	jb	acc.5, setup_datetime_updaterb2_date				; Update date digit
+	jnb	acc.4, setup_datetime_updaterb2_no_match
+	ajmp	setup_datetime_updaterb2_time					; Update time digit
+setup_datetime_updaterb2_no_match:
+	setb	c								; Set error (we shouldn't get here)
+	ret
+
+; # Update date
+; ##############
+setup_datetime_updaterb2_date:
+	mov	a, tmp_var
+	jb	acc.0, setup_datetime_updaterb2_date_day
+	jb	acc.1, setup_datetime_updaterb2_date_month
+	jb	acc.2, setup_datetime_updaterb2_date_year
+	ajmp	setup_datetime_updaterb2_error					; Shouldn't ever get here
+setup_datetime_updaterb2_date_day:
+	jb	acc.3, setup_datetime_updaterb2_date_day_d2
+setup_datetime_updaterb2_date_day_d1:						; Valid: 0-3
+	mov	a, b
+	cjne	a, #0x04, setup_datetime_updaterb2_date_day_d1_cmp		; Check whether new d1 is less than 4
+setup_datetime_updaterb2_date_day_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r3							; Get day
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r3, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_day_d2:						; Valid: 0-9 (d1 = 0-2), 0/1 (d1 = 3)
+	mov	a, rb2r3							; Get day
+	anl	a, #0xf0							; Get first digit
+	swap	a
+	cjne	a, #0x03, setup_datetime_updaterb2_date_day_d2_check		; Check whether first digit is less than 3
+setup_datetime_updaterb2_date_day_d2_check:
+	jc	setup_datetime_updaterb2_date_day_d2_update			; Less than 3, just update
+	mov	a, b
+	cjne	a, #0x02, setup_datetime_updaterb2_date_day_d2_check_cmp	; Check the new digit is less than 2
+setup_datetime_updaterb2_date_day_d2_check_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+setup_datetime_updaterb2_date_day_d2_update:
+	mov	a, rb2r3							; Get day
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	jnz	setup_datetime_updaterb2_date_day_d2_save			; Check that user hasn't entered '00'
+	mov	a, #0x01
+setup_datetime_updaterb2_date_day_d2_save:
+	mov	rb2r3, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_month:
+	jb	acc.3, setup_datetime_updaterb2_date_month_d2
+setup_datetime_updaterb2_date_month_d1:						; Valid: 0/1
+	mov	a, b
+	cjne	a, #0x02, setup_datetime_updaterb2_date_month_d1_cmp		; Check whether new d1 is less than 2
+setup_datetime_updaterb2_date_month_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r4							; Get month
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r4, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_month_d2:						; Valid: 0-9 (d1 = 0), 0-2 (d1 = 1)
+	mov	a, rb2r4							; Get month
+	jnb	acc.4, setup_datetime_updaterb2_date_month_d2_update		; Check whether first digit is 1, and if not just update
+	mov	a, b
+	cjne	a, #0x03, setup_datetime_updaterb2_date_month_d2_cmp		; Check whether new digit is less than 3
+setup_datetime_updaterb2_date_month_d2_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+setup_datetime_updaterb2_date_month_d2_update:
+	mov	a, rb2r4							; Get month
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	jnz	setup_datetime_updaterb2_date_month_d2_save			; Check that user hasn't entered '00'
+	mov	a, #0x01
+setup_datetime_updaterb2_date_month_d2_save:
+	mov	rb2r4, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_year:
+	jb	acc.3, setup_datetime_updaterb2_date_year_d2
+setup_datetime_updaterb2_date_year_d1:						; Valid: 0-9
+	mov	a, rb2r5							; Get year
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r5, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_year_d2:						; Valid: 0-9
+	mov	a, rb2r5							; Get year
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	mov	rb2r5, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+
+; # These exit functions are shared between the previous and next functions
+; ##########################################################################
+setup_datetime_updaterb2_finish:
+	clr	c
+	ret
+setup_datetime_updaterb2_error:
+	setb	c
+	ret
+
+; # Update time
+; ##############
+setup_datetime_updaterb2_time:
+	mov	a, tmp_var
+	jb	acc.0, setup_datetime_updaterb2_time_hour
+	jb	acc.1, setup_datetime_updaterb2_time_minute
+	jb	acc.2, setup_datetime_updaterb2_time_second
+	sjmp	setup_datetime_updaterb2_error					; Shouldn't ever get here
+setup_datetime_updaterb2_time_hour:
+	jb	acc.3, setup_datetime_updaterb2_time_hour_d2
+setup_datetime_updaterb2_time_hour_d1:						; Valid: 0-2
+	mov	a, b
+	cjne	a, #0x03, setup_datetime_updaterb2_time_hour_d1_cmp		; Check whether new d1 is less than 3
+setup_datetime_updaterb2_time_hour_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r2							; Get hour
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r2, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_hour_d2:						; Valid: 0-9 (d1 = 0/1), 0-3 (d1 = 2)
+	mov	a, rb2r2							; Get hour
+	anl	a, #0xf0							; Get first digit
+	swap	a
+	cjne	a, #0x02, setup_datetime_updaterb2_time_hour_d2_check		; Check whether first digit is less than 2
+setup_datetime_updaterb2_time_hour_d2_check:
+	jc	setup_datetime_updaterb2_time_hour_d2_update			; Less than 2, just update
+	mov	a, b
+	cjne	a, #0x04, setup_datetime_updaterb2_time_hour_d2_check_cmp	; Check whether new digit is than 4
+setup_datetime_updaterb2_time_hour_d2_check_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+setup_datetime_updaterb2_time_hour_d2_update:
+	mov	a, rb2r2							; Get hour
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	mov	rb2r2, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_minute:
+	jb	acc.3, setup_datetime_updaterb2_time_minute_d2
+setup_datetime_updaterb2_time_minute_d1:					; Valid: 0-5
+	mov	a, b
+	cjne	a, #0x06, setup_datetime_updaterb2_time_minute_d1_cmp		; Check whether new d1 is less than 6
+setup_datetime_updaterb2_time_minute_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r1							; Get minutes
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r1, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_minute_d2:					; Valid: 0-9
+	mov	a, rb2r1							; Get minutes
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	mov	rb2r1, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_second:
+	jb	acc.3, setup_datetime_updaterb2_time_second_d2
+setup_datetime_updaterb2_time_second_d1:					; Valid: 0-5
+	mov	a, b
+	cjne	a, #0x06, setup_datetime_updaterb2_time_second_d1_cmp		; Check whether new d1 is less than 6
+setup_datetime_updaterb2_time_second_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r0							; Get seconds
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r0, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_second_d2:					; Valid: 0-9
+	mov	a, rb2r0							; Get seconds
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	mov	rb2r0, a							; Save new value
+	ajmp	setup_datetime_updaterb2_finish
 
 ; # Serial
 ; #########
