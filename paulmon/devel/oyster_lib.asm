@@ -1045,6 +1045,31 @@ rtc_set_datetime_finish:
 	ajmp	i2c_stop
 
 
+; # rtc_calc_year
+; #
+; # Calculates a year based on the saved current year, and the data
+; #  returned from the RTC (it only stores 2 bits).
+; # In:
+; #   A - RTC data (has to be assumed A >= current year)
+; # Out:
+; #   A - Number of years from y2k
+; ##########################################################################
+rtc_calc_year:
+	mov	b, current_year
+rtc_calc_year_next_loop:
+	push	b								; Save the current year
+	anl	b, #0x03							; Extract 2 lsbs
+	cjne	a, b, rtc_calc_year_next					; See if the 'years' match
+	sjmp	rtc_calc_year_next_finish
+rtc_calc_year_next:
+	pop	b								; Restore the full year
+	inc	b								; Lets try the next year
+	sjmp	rtc_calc_year_next_loop
+rtc_calc_year_next_finish:
+	pop	acc								; The matched year is returned in A
+	ret
+
+
 ; ###############################################################################################################
 ; #                                                 Keyboard library
 ; #
@@ -3160,6 +3185,9 @@ setup_datetime_loop:
 	clr	lcd_glyph_invert
 
 	lcall	rtc_get_datetime
+	mov	a, r5								; We need to adjust the year according to the saved current_year
+	lcall	rtc_calc_year
+	mov	r5, a
 	mov	a, tmp_var							; Check editting state
 	jz	setup_datetime_loop_print_dt					; If we're not doing anything just print
 	jb	acc.7, setup_datetime_loop_print_dt				; If we've already made a copy just print
@@ -3212,9 +3240,7 @@ setup_datetime_loop_print_date_month:
 	jnb	acc.2, setup_datetime_loop_print_date_year			; Not editting year, don't invert
 	setb	lcd_glyph_invert
 setup_datetime_loop_print_date_year:
-	mov	a, current_year							; Get the year we think it is
-	anl	a, 0xfc								; Lose the last 2 lsbs
-	orl	a, r5								; Add 2 lsbs from the RTC
+	mov	a, r5								; Add 2 lsbs from the RTC
 	lcall	print_bcd_digit
 	anl	psw, #0b11100111						; Re-select the second register bank
 	orl	psw, #0b00001000
@@ -3283,6 +3309,9 @@ setup_datetime_loop_alarm_sprint:
 	lcall	lcd_pstr
 
 	lcall	rtc_get_alarm_datetime
+	mov	a, r5								; We need to adjust the year according to the saved current_year
+	lcall	rtc_calc_year
+	mov	r5, a
 	mov	a, tmp_var							; Check editting state
 	jz	setup_datetime_loop_print_adt					; If we're not doing anything just print
 	jb	acc.7, setup_datetime_loop_print_adt				; If we've already made a copy just print
@@ -3335,9 +3364,7 @@ setup_datetime_loop_print_adate_month:
 	jnb	acc.2, setup_datetime_loop_print_adate_year			; Not editting year, don't invert
 	setb	lcd_glyph_invert
 setup_datetime_loop_print_adate_year:
-	mov	a, current_year							; Get the year we think it is
-	anl	a, 0xfc								; Lose the last 2 lsbs
-	orl	a, r5								; Add 2 lsbs from the RTC
+	mov	a, r5								; Add 2 lsbs from the RTC
 	lcall	print_bcd_digit
 	anl	psw, #0b11100111						; Re-select the second register bank
 	orl	psw, #0b00001000
@@ -3437,11 +3464,13 @@ setup_datetime_keyboard_scan_edit_rarrow_finish:
 	ajmp	setup_datetime_loop
 setup_datetime_keyboard_scan_edit_enter:
 	cjne	a, #0x2f, setup_datetime_keyboard_scan_edit_ascii		; If enter pressed
-
-	mov	a, tmp_var							; Do we need to adjust the date (because RTC only stores 2 bits)
-	
-
-
+	mov	a, tmp_var							; Are we editing a date?
+	jnb	acc.5, setup_datetime_keyboard_scan_edit_enter_refresh		; No, just continue
+	jb	acc.6, setup_datetime_keyboard_scan_edit_enter_amend_year	; Is this the current date we're editing
+	mov	current_year, rb2r5						; Then update current_year
+setup_datetime_keyboard_scan_edit_enter_amend_year:
+	anl	rb2r5, #0x03							; RTC stores only 2 lsbs of year
+setup_datetime_keyboard_scan_edit_enter_refresh:
 	mov	a, tmp_var							; Need to load the original data
 	jb	acc.6, setup_datetime_keyboard_scan_edit_enter_get_adt		; So are we editing the alarm?
 	lcall	rtc_get_datetime
