@@ -2216,6 +2216,17 @@ system_config_restore_do:
 	mov	c, acc.0
 	mov	key_click, c							; Restore key click
 	lcall	serial_mainport_set_state					; Restore main serial port state
+
+	lcall	rtc_get_datetime						; Need to check that current_year is still valid
+	mov	a, r5
+	lcall	rtc_calc_year							; Calculate the year based on RTC data and the stored year
+	cjne	a, current_year, system_config_restore_do_year_update		; Check whether stored and calculated years are the same
+	sjmp	system_config_restore_do_finish					; If they are, just continue
+system_config_restore_do_year_update:
+	mov	current_year, a							; Save updated year
+	lcall	system_config_save						; Save config (with updated year) back to RTC ram
+
+system_config_restore_do_finish:
 	ret
 
 
