@@ -46,6 +46,10 @@
 .equ    pint8, 0x98+paulmon2							; Print Acc at an integer, -128 to 127
 .equ    pint16u, 0x9b+paulmon2							; Print DPTR as an integer, 0 to 65535
 
+.equ	stack, 0x70								; location of the stack
+.equ	baud_save, 0x68								; save baud for warm boot, 4 bytes
+
+
 ; SFR definitions
 ; ##########################################################################
 .equ	sfr_cml0_80c562, 0xA9							; Timer2 compare L register 0
@@ -71,8 +75,42 @@
 
 ; RAM definitions
 ; ##########################################################################
+; Bank 0
+.equ	rb0r0, 0x00
 .equ	rb0r1, 0x01
 .equ	rb0r2, 0x02
+.equ	rb0r3, 0x03
+.equ	rb0r4, 0x04
+.equ	rb0r5, 0x05
+.equ	rb0r6, 0x06
+.equ	rb0r7, 0x07
+; Bank 1
+.equ	rb1r0, 0x08
+.equ	rb1r1, 0x09
+.equ	rb1r2, 0x0a
+.equ	rb1r3, 0x0b
+.equ	rb1r4, 0x0c
+.equ	rb1r5, 0x0d
+.equ	rb1r6, 0x0e
+.equ	rb1r7, 0x0f
+; Bank 2
+.equ	rb2r0, 0x10
+.equ	rb2r1, 0x11
+.equ	rb2r2, 0x12
+.equ	rb2r3, 0x13
+.equ	rb2r4, 0x14
+.equ	rb2r5, 0x15
+.equ	rb2r6, 0x16
+.equ	rb2r7, 0x17
+; Bank 3
+.equ	rb3r0, 0x18
+.equ	rb3r1, 0x19
+.equ	rb3r2, 0x1a
+.equ	rb3r3, 0x1b
+.equ	rb3r4, 0x1c
+.equ	rb3r5, 0x1d
+.equ	rb3r6, 0x1e
+.equ	rb3r7, 0x1f
 
 ; Bit addressable addresses (0x20-0x21 not used by MCS BASIC)
 .equ	stack_carry, 0x20							; Save Carry state here to load on the stack
@@ -90,10 +128,25 @@
 .equ	mem_page_psen, 0x58							; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59							; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A							; Used to select the correct keymap
+.equ	tmp_var, 0x60
+.equ	current_year, 0x67							; The current year as an offset from 2000 (needed as the RTC only stores 2 bits for the year)
+; 0x68-0x6B used by baud_save
+.equ	lcd_props_save, 0x6C							; Used to retain the backlight/contrast settings when the screen is off
+.equ	sys_props_save, 0x6D							; System config
+										;	0 - key_click
+										; 	1 - Main serial port status
+.equ	sys_cfg_chksum_inv, 0x6E						; Checksum (inverted) of the system configuration
+.equ	sys_cfg_checksum, 0x6F							; Checksum of the system configuration
+
+; Definitions for the system config save/restore rountines
+; So there is only one place to update
+.equ	sys_config_start, current_year
+.equ	sys_config_end, sys_props_save
 
 ; Bit RAM definitions
 ; ##########################################################################
 .flag	use_oysterlib, 0x20.0
+.flag	key_click, 0x20.1
 .flag	mem_mode_psen_ram, 0x20.2						; This bit is not randomly chosen, see memory command
 .flag	mem_mode_psen_ram_card, 0x20.3						; This bit is not randomly chosen, see memory command
 .flag	tmp_bit, 0x20.4
@@ -109,6 +162,18 @@
 .flag	lcd_glyph_use_ram, 0x21.5
 .flag	keyboard_key_down, 0x21.6
 .flag	keyboard_new_char, 0x21.7
+
+
+;  Baud rate reload definitions
+; ##########################################################################
+.equ	BAUD_19200, 0xFE
+.equ	BAUD_9600, 0xFC
+.equ	BAUD_4800, 0xF8
+.equ	BAUD_2400, 0xF0
+.equ	BAUD_1200, 0xE0
+.equ	BAUD_600, 0xC0
+.equ	BAUD_300, 0x80
+.equ	BAUD_150, 0x00
 
 
 .org	locat
@@ -133,6 +198,7 @@ memory_lib:
 	ajmp	memory_set_mode_psen						; 0x04
 	ajmp	memory_set_mode_rdwr						; 0x06
 	ajmp	memory_ramcard_present						; 0x08
+	ajmp	memory_ramcard_write_protect					; 0x0a
 ; i2c library functions
 i2c_lib:
 	ajmp	i2c_start							; 0x00
@@ -174,12 +240,27 @@ lcd_lib:
 	ajmp	lcd_set_backlight_off						; 0x12
 	ajmp	lcd_set_contrast_inc						; 0x14
 	ajmp	lcd_set_contrast_dec						; 0x16
+; serial library functions
+serial_lib:
+	ajmp	serial_mainport_enable						; 0x00
+	ajmp	serial_mainport_disable						; 0x02
+	ajmp	serial_rts_set							; 0x04
+	ajmp	serial_rts_unset						; 0x06
+	ajmp	serial_cts_check						; 0x08
+	ajmp	serial_baudsave_check						; 0x0a
+	ajmp	serial_baudsave_set_reload					; 0x0c
+	ajmp	serial_baudsave_set						; 0x0e
+; power library functions
+power_lib:
+	ajmp	power_battery_main_check_charging				; 0x00
+	ajmp	power_battery_backup_check_status				; 0x02
+	ajmp	power_battery_ramcard_check_status_warn				; 0x04
+	ajmp	power_battery_ramcard_check_status_fail				; 0x06
 ; misc library functions
 misc_lib:
 	ajmp	piezo_beep							; 0x00
 	ajmp	piezo_pwm_sound							; 0x02
 	ajmp	sdelay								; 0x04
-	ajmp	battery_check_status						; 0x06
 
 
 ; ###############################################################################################################
@@ -205,9 +286,10 @@ oyster_cout_do_character:
 	push	acc
 	mov	stack_carry_bit, c						; Save Carry to the stack
 	push	stack_carry
+	push	psw
 	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
 	acall	lcd_print_character
-	anl	psw, #0b11100111						; Restore register bank
+	pop	psw
 	pop	stack_carry							; Restore Carry
 	mov	c, stack_carry_bit
 	pop	acc
@@ -229,9 +311,10 @@ oyster_newline:
 	jnb	use_oysterlib, oyster_newline_serial
 	mov	stack_carry_bit, c						; Save Carry to the stack
 	push	stack_carry
+	push	psw
 	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
 	acall	lcd_new_line_scroll_and_clear
-	anl	psw, #0b11100111						; Restore register bank
+	pop	psw
 	mov	lcd_start_position, #0xE0					; Reset start position to first character last row
 	pop	stack_carry							; Restore Carry
 	mov	c, stack_carry_bit
@@ -254,9 +337,10 @@ oyster_cin:
 	jnb	use_oysterlib, oyster_cin_serial
 	mov	stack_carry_bit, c						; Save Carry to the stack
 	push	stack_carry
+	push	psw
 	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
 	acall	keyboard_wait_for_keypress
-	anl	psw, #0b11100111						; Restore register bank
+	pop	psw
 	mov	a, keycode_ascii						; Get ascii code
 	clr	keyboard_new_char						; Reset flag
 	pop	stack_carry							; Restore Carry
@@ -490,20 +574,6 @@ memory_ramcard_write_protect:
 	jnb	sfr_p4_80c562.1, memory_ramcard_write_protect_finish
 	setb	c								; SRAM card write protected
 memory_ramcard_write_protect_finish:
-	ret
-
-
-; # memory_ramcard_battery_check_status
-; #
-; # Returns a simple okay/fail for memory card battery
-; # Out:
-; #   Carry - battery status
-; ##########################################################################
-memory_ramcard_battery_check_status:
-	clr	c								; SRAM card battery failure
-	jnb	sfr_p4_80c562.2, memory_ramcard_battery_check_status_finish
-	setb	c								; SRAM card battery okay
-memory_ramcard_battery_check_status_finish:
 	ret
 
 
@@ -801,23 +871,62 @@ rtc_set_alarm_config:
 ; #   Carry - error
 ; ##########################################################################
 rtc_init:
-	mov	a, #4								; 0b00000100 - Clock mode 32.768 kHz, alarm enabled
-	mov	b, #rtc_addr1
-	acall	rtc_set_config							; Config RTC1
-	jc	rtc_init_finish							; Exit on error
-	mov	a, #5								; Timer function: days, Alarm/Timer flag: no iterrupt, no timer alarm, no clock alarm
-	mov	b, #rtc_addr1
-	acall	rtc_set_alarm_config						; Config RTC1 alarm
-	jc	rtc_init_finish							; Exit on error
 	mov	a, #20h								; 0b00100000 - Event counter mode, alarm registers disable
 	mov	b, #rtc_addr2
 	acall	rtc_set_config							; Config RTC2
 	jc	rtc_init_finish							; Exit on error
+
+	mov	a, #0x30							; Timer function: no timer, Alarm/Timer flag: no interrupt, no timer alarm, Clock alarm: dated alarm
+	mov	b, #rtc_addr1
+	acall	rtc_set_alarm_config						; Config RTC1 alarm
+	jc	rtc_init_finish							; Exit on error
+; # rtc_start
+; #
+; # Used in conjunction with rtc_stop when the date/time needs to be updated
+; ##########################################################################
+rtc_start:
+	mov	a, #4								; 0b00000100 - Clock mode 32.768 kHz, alarm enabled
+	mov	b, #rtc_addr1
+	acall	rtc_set_config							; Config RTC1
+	jc	rtc_init_finish							; Exit on error
+
 	clr	c
 rtc_init_finish:
 	ret
 
 
+; # rtc_stop
+; #
+; # Stops the RTC ticking
+; # Out:
+; #   Carry - error
+; ##########################################################################
+rtc_stop:
+	mov	a, #0x80							; Stop counting, disable alarm
+	mov	b, #rtc_addr1
+	acall	rtc_set_config							; Config RTC1
+	jc	rtc_stop_finish							; Exit on error
+
+	clr	c
+rtc_stop_finish:
+	ret
+
+
+; # rtc_get_alarm_datetime
+; #
+; # Returns the alarm date/time registers (don't care about hundreths of a second)
+; # Out:
+; #   r0 - Seconds
+; #   r1 - Minutes
+; #   r2 - Hours
+; #   r3 - Day of the month
+; #   r4 - Month
+; #   r5 - Year (0-3)
+; #   Carry - error
+; ##########################################################################
+rtc_get_alarm_datetime:
+	mov	a, #0x0a							; Alarm seconds register
+	sjmp	rtc_get_datetime_main
 ; # rtc_get_datetime
 ; #
 ; # Returns the date/time registers (don't care about hundreths of a second)
@@ -832,26 +941,23 @@ rtc_init_finish:
 ; ##########################################################################
 rtc_get_datetime:
 	mov	a, #2								; Seconds register
+rtc_get_datetime_main:
 	mov	b, #rtc_addr1
 	acall	i2c_read_device_register					; Get value
 	jc	rtc_get_datetime_finish
 	acall	i2c_master_read_ack
-	acall	packed_bcd_to_hex						; Convert for system use
 	push	acc								; Store seconds for later (r0 used by i2c_*)
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
-	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r1, a								; Store minutes
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
 	anl	a, #3fh								; Make sure valid value (24h clock)
-	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r2, a								; Store hours
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
 	push	acc								; Store for later
 	anl	a,#3fh								; Lose year data
-	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r3, a								; Store day of the month
 	pop	acc								; Get original value
 	rl	a
@@ -860,7 +966,6 @@ rtc_get_datetime:
 	mov	r5, a								; Store year
 	acall	i2c_read_byte							; Get value
 	anl	a, #1fh								; Lose weekday data
-	acall	packed_bcd_to_hex						; Convert for system use
 	mov	r4, a								; Store month
 	clr	c
 rtc_get_datetime_finish:
@@ -869,9 +974,29 @@ rtc_get_datetime_finish:
 	mov	r0, a
 	ret
 
+
+; # rtc_set_alarm_datetime
+; #
+; # Set the alarm date/time of the RTC.
+; # N.B. Need to disable the RTC before loading new datetime.
+; # In:
+; #   r0 - Seconds
+; #   r1 - Minutes
+; #   r2 - Hours
+; #   r3 - Day of the month
+; #   r4 - Month
+; #   r5 - Year (0-3)
+; # Out:
+; #   Carry - error
+; ##########################################################################
+rtc_set_alarm_datetime:
+	mov	a, r0								; Save for later (r0 used by i2c_*)
+	push	acc
+	mov	a, #0x09							; Alarm hundreths of a second
+	sjmp	rtc_set_datetime_main
 ; # rtc_set_datetime
 ; #
-; # Set the datetime of the RTC.
+; # Set the date/time of the RTC.
 ; # N.B. Need to disable the RTC before loading new datetime.
 ; # In:
 ; #   r0 - Seconds
@@ -887,6 +1012,7 @@ rtc_set_datetime:
 	mov	a, r0								; Save for later (r0 used by i2c_*)
 	push	acc
 	mov	a, #1								; Hundreths of a second
+rtc_set_datetime_main:
 	mov	b, #rtc_addr1
 	acall	i2c_write_byte_to_addr						; Select register
 	jc	rtc_set_datetime_finish
@@ -894,24 +1020,15 @@ rtc_set_datetime:
 	acall	i2c_write_byte_with_ack_check					; Load hundreths of a second
 	jc	rtc_set_datetime_finish
 	pop	acc
-	anl	a, #3fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load seconds
 	jc	rtc_set_datetime_finish
 	mov	a, r1
-	anl	a, #3fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load minutes
 	jc	rtc_set_datetime_finish
 	mov	a, r2
-	anl	a, #1fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load hours
 	jc	rtc_set_datetime_finish
 	mov	a, r3
-	anl	a, #1fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
-	anl	a, #3fh								; Make sure valid value
 	mov	r0, a								; Store for later
 	mov	a, r5
 	anl	a, #3								; Make sure valid value
@@ -921,13 +1038,36 @@ rtc_set_datetime:
 	acall	i2c_write_byte_with_ack_check					; Load value
 	jc	rtc_set_datetime_finish
 	mov	a, r4
-	anl	a, #0fh								; Make the value reasonable (if not correct)
-	acall	hex_to_packed_bcd						; Convert for RTC register
 	acall	i2c_write_byte_with_ack_check					; Load month
 	jc	rtc_set_datetime_finish
 	clr	c
 rtc_set_datetime_finish:
 	ajmp	i2c_stop
+
+
+; # rtc_calc_year
+; #
+; # Calculates a year based on the saved current year, and the data
+; #  returned from the RTC (it only stores 2 bits).
+; # In:
+; #   A - RTC data (has to be assumed A >= current year)
+; # Out:
+; #   A - Number of years from y2k
+; ##########################################################################
+rtc_calc_year:
+	mov	b, current_year
+rtc_calc_year_next_loop:
+	push	b								; Save the current year
+	anl	b, #0x03							; Extract 2 lsbs
+	cjne	a, b, rtc_calc_year_next					; See if the 'years' match
+	sjmp	rtc_calc_year_next_finish
+rtc_calc_year_next:
+	pop	b								; Restore the full year
+	inc	b								; Lets try the next year
+	sjmp	rtc_calc_year_next_loop
+rtc_calc_year_next_finish:
+	pop	acc								; The matched year is returned in A
+	ret
 
 
 ; ###############################################################################################################
@@ -1031,6 +1171,13 @@ keyboard_read_key_make_keycode:
 keyboard_read_key_make_keycode_update:
 	mov	keycode_raw, a							; Save result (0bxxCCCRRR)
 	setb	keyboard_key_down						; Set, so we don't loop on the same key press
+
+	jnb	key_click, keyboard_read_key_make_keycode_check_mode		; Don't emit a key 'click' if disabled
+	push	acc
+	mov	a, #0x0b							; 2 kHz
+	mov	b, #0x01							; 50 ms
+	lcall	piezo_beep
+	pop	acc
 keyboard_read_key_make_keycode_check_mode:
 	cjne	a, #0x20, keyboard_read_key_make_keycode_check_mode_lock	; Look for the 'mode' keycode
 	mov	a, keymap_offset						; Get the currently selected keymap
@@ -1044,7 +1191,7 @@ keyboard_read_key_make_keycode_check_mode_inc:
 keyboard_read_key_make_keycode_check_mode_inc_cmp:
 	jc	keyboard_reset
 	mov	keymap_offset, #0x00						; Select default keymap
-	sjmp	keyboard_reset
+	ajmp	keyboard_reset
 keyboard_read_key_make_keycode_check_mode_lock:
 	cjne	a, #0x2C, keyboard_read_key_make_keycode_ascii			; Check for 'DEL' key
 	xch	a, keymap_offset
@@ -1078,6 +1225,29 @@ keyboard_wait_for_keypress:
 	jnb	keyboard_new_char, keyboard_wait_for_keypress			; Wait until there is one
 	jb	keyboard_key_down, keyboard_wait_for_keypress			; Wait for key to be released
 	ret
+
+
+; # keyboard_click_toggle
+; #
+; # Toggle key_click
+; ##########################################################################
+keyboard_click_toggle:
+	mov	c, key_click
+	cpl	c
+; # keyboard_click_set
+; #
+; # Sets whether a 'click' is emmitted when a key is depressed
+; # In:
+; #   Carry - When set, key clicks emit a tone
+; ##########################################################################
+keyboard_click_set:
+	mov	a, sys_props_save						; Save configuration
+	anl	a, #0xfe
+	mov	acc.0, c
+	mov	sys_props_save, a
+	mov	key_click, c							; Set flag
+	ret
+
 
 ; ###############################################################################################################
 ; #                                                    LCD functions
@@ -1115,6 +1285,8 @@ lcd_get_data:
 ; # Cycle through the subscreens turning them off
 ; ##########################################################################
 lcd_off:
+	acall	lcd_set_properties_off						; Turn off backlight, et al.
+
 	setb	p1.4								; Enable clock
 	mov	dph, #0x80							; Select LCD (command register)
 lcd_off_subscreen:
@@ -1133,6 +1305,8 @@ lcd_off_subscreen:
 ; # Initialise the LCD, clear the memory
 ; ##########################################################################
 lcd_init:
+	acall	lcd_set_properties_defaults
+
 	setb	p1.4								; Enable clock
 	mov	dph, #0x80							; Select LCD (command register)
 lcd_init_subscreen:
@@ -1475,6 +1649,8 @@ lcd_set_glyph_position_subscreen_config_next:
 ; ##########################################################################
 lcd_pstr:
 	push    acc
+	push	psw
+	orl	psw, #0b00011000
 lcd_pstr_next_char:
 	clr	a
 	movc	a, @a+dptr
@@ -1487,19 +1663,36 @@ lcd_pstr_next_char:
 	jb	acc.7, lcd_pstr_finish
 	sjmp	lcd_pstr_next_char
 lcd_pstr_finish:
+	pop	psw
 	pop	acc
 	ret
 
 
+; # lcd_set_properties_off
+; #
+; # Used in lcd_off, powers off ancillary lcd components
+; ##########################################################################
+lcd_set_properties_off:
+	mov	a, #0x00
+	sjmp	lcd_set_properties_do						; This way we don't save the changes
+; # lcd_set_properties_defaults
+; #
+; # Configures backlight/contrast to default values
+; ##########################################################################
+lcd_set_properties_defaults:
+	mov	a, lcd_props_save						; Get existing values
 ; # lcd_set_properties
 ; #
 ; # Updates the backlight/contrast of the LCD display
 ; # Latch @00xx + p1.4
-; # 0bxxxbcccc - b=backlight, c=contrast
+; # 0bxxfbcccc - b=backlight, c=contrast, f=flash voltage enable
 ; # In:
 ; #   A - LCD properties value
 ; ##########################################################################
 lcd_set_properties:
+	mov	lcd_props_save, a						; Save config
+	anl	lcd_props_save, #0x1f						; Make sure we only save the values we are interested in
+lcd_set_properties_do:
 	mov	lcd_properties, a
 	setb	p1.4
 	mov	dph, #0
@@ -1508,6 +1701,15 @@ lcd_set_properties:
 	ret
 
 
+; # lcd_set_backlight_toggle
+; #
+; # Toggle backlight
+; ##########################################################################
+lcd_set_backlight_toggle:
+	mov	a, lcd_properties
+	mov	c, acc.4
+	cpl	c
+	sjmp	lcd_set_backlight
 ; # lcd_set_backlight_on
 ; #
 ; # Turn on LCD backlight
@@ -1570,6 +1772,213 @@ lcd_set_contrast:
 lcd_set_contrast_finish:
 	ret
 
+
+; ###############################################################################################################
+; #                                                   Print functions
+; ###############################################################################################################
+
+
+; # print_bcd
+; #
+; # Prints a BCD encoded digit (prints zeros as well)
+; # In:
+; #   A - Byte to print
+; ##########################################################################
+print_bcd_digit:
+	push	acc
+	anl	a, #0xf0							; First digit
+	swap	a
+	add	a, #'0'								; Make an ASCII character
+	lcall	oyster_cout
+	pop	acc
+	anl	a, #0x0f							; Second digit
+	add	a, #'0'								; Make an ASCII character
+	lcall	oyster_cout
+	ret
+
+
+; ###############################################################################################################
+; #                                                   Serial functions
+; ###############################################################################################################
+
+
+; # serial_mainport_enable
+; #
+; # Enables the main serial port (P1) receivers
+; ##########################################################################
+serial_mainport_enable:
+	orl	sys_props_save, #0x02						; Set flag
+	sjmp	serial_mainport_set_state
+; # serial_mainport_disable
+; #
+; # Disables the main serial port (P1) receivers
+; ##########################################################################
+serial_mainport_disable:
+	anl	sys_props_save, #0xfd						; Clear flag
+serial_mainport_set_state:
+	mov	a, sys_props_save
+	mov	c, acc.1
+	clr	sfr_p4_80c562.7
+	jnc	serial_mainport_set_state_finish
+	setb	sfr_p4_80c562.7
+serial_mainport_set_state_finish:
+	ret
+
+
+; # serial_rts_set
+; #
+; # Set RTS (Request to Send)
+; ##########################################################################
+serial_rts_set:
+	setb	sfr_p4_80c562.0
+	ret
+
+
+; # serial_rts_unset
+; #
+; # Unset RTS (Request to Send)
+; ##########################################################################
+serial_rts_unset:
+	clr	sfr_p4_80c562.0
+	ret
+
+
+; # serial_cts_check
+; #
+; # Check the status of the CTS (Clear to Send) line
+; # Out:
+; #  Carry - Status of the CTS line
+; ##########################################################################
+serial_cts_check:
+	push	acc
+	mov	a, sfr_p5_80c562
+	mov	c, acc.2
+	pop	acc
+	ret
+
+
+; # serial_baudsave_check
+; #
+; # Check whether PaulMON 'baud save' structure exists
+; # Out:
+; #  Carry - set if baud bytes exist
+; ##########################################################################
+serial_baudsave_check:
+	clr	c
+	mov	a, baud_save+3							; Get the current baud rate, if it exists
+	xrl	baud_save+2, #01010101b
+	cjne	a, baud_save+2, serial_baudsave_check_finish
+	xrl	baud_save+2, #01010101b						; Redo XOR
+	xrl	baud_save+1, #11001100b
+	cjne	a, baud_save+1, serial_baudsave_check_finish
+	xrl	baud_save+1, #11001100b						; Redo XOR
+	xrl	baud_save+0, #00011101b
+	cjne	a, baud_save+0, serial_baudsave_check_finish
+	xrl	baud_save+0, #00011101b						; Redo XOR
+	setb	c
+serial_baudsave_check_finish:
+	ret
+
+
+; # serial_baudsave_set_default
+; #
+; # Sets the serial baud rate to the default value (19200)
+; ##########################################################################
+serial_baudsave_set_default:
+	mov	a, #BAUD_19200
+; # serial_baudsave_set_reload
+; #
+; # Sets the PaulMON 'baud save' bytes, and updates the hardware reload value
+; # In:
+; #  A - Baud rate reload value
+; ##########################################################################
+serial_baudsave_set_reload:
+	mov	th1, a								; Set the hardware reload value
+	mov	tl1, a
+; # serial_baudsave_set
+; #
+; # Sets the PaulMON 'baud save' bytes
+; # In:
+; #  A - Baud rate reload value
+; ##########################################################################
+serial_baudsave_set:
+	mov	baud_save+3, a							; Store the baud rate for next warm boot.
+	mov	baud_save+2, a
+	mov	baud_save+1, a
+	mov	baud_save+0, a
+        xrl	baud_save+2, #01010101b
+        xrl	baud_save+1, #11001100b
+        xrl	baud_save+0, #00011101b
+	ret
+
+
+; ###############################################################################################################
+; #                                                   Power functions
+; ###############################################################################################################
+
+
+; # power_battery_main_check_charging
+; #
+; # Returns whether the main battery is currently fast charging
+; # U2 (MAX713) - FASTCHG output is checked
+; # Out:
+; #   Carry - charge status
+; ##########################################################################
+power_battery_main_check_charging:
+	clr	c
+	jb	sfr_p4_80c562.4, power_battery_main_check_charging_finish
+	setb	c
+power_battery_main_check_charging_finish:
+	ret
+
+
+; # power_battery_backup_check_status
+; #
+; # Returns a simple okay/fail for the backup battery
+; # Out:
+; #   Carry - battery status
+; ##########################################################################
+power_battery_backup_check_status:
+	mov	a, sfr_p5_80c562						; Read Port 5
+	clr	c								; Battery low
+	jnb	acc.1, power_battery_backup_check_status_finish
+	setb	c								; Battery okay
+power_battery_backup_check_status_finish:
+	ret
+
+
+; # power_battery_ramcard_check_status_warn
+; #
+; # Returns a simple okay/warning for memory card battery
+; # Out:
+; #   Carry - battery status
+; ##########################################################################
+power_battery_ramcard_check_status_warn:
+	clr	c								; SRAM card battery warning
+	jnb	sfr_p4_80c562.2, power_battery_ramcard_check_status_warn_finish
+	setb	c								; SRAM card battery okay
+power_battery_ramcard_check_status_warn_finish:
+	ret
+
+
+; # power_battery_ramcard_check_status_fail
+; #
+; # Returns a simple okay/fail for memory card battery
+; # Out:
+; #   Carry - battery status
+; ##########################################################################
+power_battery_ramcard_check_status_fail:
+	clr	c								; SRAM card battery failure
+	jnb	sfr_p4_80c562.3, power_battery_ramcard_check_status_fail_finish
+	setb	c								; SRAM card battery okay
+power_battery_ramcard_check_status_fail_finish:
+	ret
+
+
+; # power_event
+; #
+; #
+; ##########################################################################
 
 ; ###############################################################################################################
 ; #                                                    Misc functions
@@ -1700,26 +2109,137 @@ terminal_esc_cursor_right:
 
 .equ	esc_char, 0x1b
 
+; ###############################################################################################################
+; #                                                    System config functions
+; ###############################################################################################################
 
-; # battery_check_status
+
+; # system_config_check
 ; #
-; # Returns a simple okay/fail for the main battery
-; # Out:
-; #   Carry - battery status
+; # Check whether the system config structure exists
+; #  Out:
+; #   Carry - Set if config exists
 ; ##########################################################################
-battery_check_status:
-	mov	a, sfr_p5_80c562						; Read Port 5
-	clr	c								; Battery low
-	jnb	acc.1, battery_check_status_finish
-	setb	c								; Battery okay
-battery_check_status_finish:
+system_config_check:
+	clr	a
+	mov	r0, #sys_config_start
+system_config_check_loop:
+	add	a, @r0
+	cjne	r0, #sys_config_end, system_config_check_loop_cmp
+system_config_check_loop_cmp:
+	jnc	system_config_check_checksum
+	inc	r0
+	sjmp	system_config_check_loop
+system_config_check_checksum:
+	cjne	a, sys_cfg_checksum, system_config_check_error
+	cpl	a
+	cjne	a, sys_cfg_chksum_inv, system_config_check_error
+	setb	c
 	ret
+system_config_check_error:
+	clr	c
+	ret
+
+
+; # system_config_save
+; #
+; # Saves the current system configuration
+; #  Out:
+; #   Carry - Set on error
+; ##########################################################################
+system_config_save:
+	clr	a
+	mov	r0, #sys_config_start
+system_config_save_loop:
+	add	a, @r0
+	cjne	r0, #sys_config_end, system_config_save_loop_cmp
+system_config_save_loop_cmp:
+	jnc	system_config_save_checksum
+	inc	r0
+	sjmp	system_config_save_loop
+system_config_save_checksum:
+	mov	sys_cfg_checksum, a
+	cpl	a
+	mov	sys_cfg_chksum_inv, a
+
+system_config_save_2_rtc:
+	mov	r1, #sys_config_start						; Register pointer
+	mov	a, #sys_config_start						; Write registers to their corresponding address in RTC RAM
+	mov	b, #rtc_addr1							; RTC i2c address
+	lcall	i2c_write_byte_to_addr
+	jc	system_config_save_finish					; Just finish if there's an error
+system_config_save_2_rtc_loop:
+	mov	a, @r1								; Get a byte of config data
+	lcall	i2c_write_byte_with_ack_check					; Write to RTC memory
+	jc	system_config_save_finish					; Check for errors
+	cjne	r1, #sys_config_end+2, system_config_save_2_rtc_loop_cmp	; See if we have reached the end of the data we're interested in (+2 for the checksum)
+system_config_save_2_rtc_loop_cmp:
+	jnc	system_config_save_finish					; Will jump when previous operands are equal
+	inc	r1								; Increment pointer
+	sjmp	system_config_save_2_rtc_loop
+system_config_save_finish:
+	lcall	i2c_stop
+	clr	c
+	ret
+
+
+; # system_config_restore
+; #
+; # Restores the system configuration, or sets defaults
+; ##########################################################################
+system_config_restore:
+	lcall	system_config_check						; See if system config data exists (Warm boot)
+	jc	system_config_restore_do
+
+system_config_restore_from_rtc:							; Try restoring data from RTC memory
+	mov	r1, #sys_config_start						; Register pointer
+	mov	a, #sys_config_start						; Read registers from their corresponding address in RTC RAM
+	mov	b, #rtc_addr1							; RTC i2c address
+	lcall	i2c_read_device_register
+	jc	system_config_restore_from_rtc_finish				; Just finish if there's an error
+system_config_restore_from_rtc_loop:
+	lcall	i2c_master_read_ack
+	mov	@r1, a								; Save byte
+	cjne	r1, #sys_config_end+2, system_config_restore_from_rtc_loop_cmp	; See if we have reached the end of the data we're interested in (+2 for the checksum)
+system_config_restore_from_rtc_loop_cmp:
+	jnc	system_config_restore_from_rtc_finish				; Will jump when previous operands are equal
+	inc	r1								; Increment pointer
+	lcall	i2c_read_byte
+	sjmp	system_config_restore_from_rtc_loop
+system_config_restore_from_rtc_finish:
+	lcall	i2c_stop
+
+	lcall	system_config_check						; Has this provided a valid system config (Cold boot)
+	jc	system_config_restore_do					; Otherwise set system defaults
+
+	mov	current_year, #0x00						; Equivalent to y2k
+	lcall	serial_baudsave_set_default					; Default baud rate
+	mov	lcd_props_save, #0x14						; LCD properties defaults, backlight on, contrast=4
+	mov	sys_props_save, #0x03						; Key click enabled, Serial port enabled
+system_config_restore_do:
+	mov	a, sys_props_save
+	mov	c, acc.0
+	mov	key_click, c							; Restore key click
+	lcall	serial_mainport_set_state					; Restore main serial port state
+
+	lcall	rtc_get_datetime						; Need to check that current_year is still valid
+	mov	a, r5
+	lcall	rtc_calc_year							; Calculate the year based on RTC data and the stored year
+	cjne	a, current_year, system_config_restore_do_year_update		; Check whether stored and calculated years are the same
+	sjmp	system_config_restore_do_finish					; If they are, just continue
+system_config_restore_do_year_update:
+	mov	current_year, a							; Save updated year
+	lcall	system_config_save						; Save config (with updated year) back to RTC ram
+
+system_config_restore_do_finish:
+	ret
+
 
 ; ###############################################################################################################
 ; #                                                     General data
 ; ###############################################################################################################
 
-.org    locat+0x700
+.org    locat+0x900
 
 ascii_font_table:
 ascii_font_table_char_0:							; Null
@@ -1742,9 +2262,9 @@ ascii_font_table_char_8:							;
 	.db	0x08, 0x1c, 0x2a, 0x08, 0x08, 0x00
 ascii_font_table_char_9:							; 
 	.db	0x08, 0x08, 0x2a, 0x1c, 0x08, 0x00
-ascii_font_table_char_10:							; 
+ascii_font_table_char_10:							; Down arrow
 	.db	0x10, 0x20, 0x7f, 0x20, 0x10, 0x00
-ascii_font_table_char_11:							; 
+ascii_font_table_char_11:							; Up arrow
 	.db	0x04, 0x02, 0x7f, 0x02, 0x04, 0x00
 ascii_font_table_char_12:							; 
 	.db	0x40, 0x40, 0x44, 0x40, 0x40, 0x00
@@ -1983,7 +2503,28 @@ glyph_double_size_conversion_table:
 	.db	0x00, 0x03, 0x0c, 0x0f, 0x30, 0x33, 0x3c, 0x3f
 	.db	0xc0, 0xc3, 0xcc, 0xcf, 0xf0, 0xf3, 0xfc, 0xff
 
-.org    locat+0xB00								; location defined so the different keymaps can easily be selected
+baud_rate_table:
+	.db	BAUD_19200
+	.db	BAUD_9600
+	.db	BAUD_4800
+	.db	BAUD_2400
+	.db	BAUD_1200
+	.db	BAUD_600
+	.db	BAUD_300
+	.db	BAUD_150
+
+.org	locat+0xCD0
+baud_rate_str_table:
+	.db	"19200", 0
+	.db	" 9600", 0
+	.db	" 4800", 0
+	.db	" 2400", 0
+	.db	" 1200", 0
+	.db	"  600", 0
+	.db	"  300", 0
+	.db	"  150", 0
+
+.org    locat+0xD00								; location defined so the different keymaps can easily be selected
 ; Keymap
 keycode_2_character_table1:
 	.db	'A'	; A
@@ -2085,7 +2626,7 @@ keycode_2_character_table2:
 	.db	0x0d	; Enter
 keycode_2_character_table3:
 	.db	'='	; A
-	.db	'{'	; E
+	.db	'}'	; E
 	.db	'@'	; K
 	.db	'?'	; Q
 	.db	0x4F	; W (End, when preceded by a null character)
@@ -2093,7 +2634,7 @@ keycode_2_character_table3:
 	.db	0x0a	; Down
 	.db	0x18	; Cancel
 	.db	'+'	; B
-	.db	'}'	; F
+	.db	'['	; F
 	.db	0x27	; L (')
 	.db	'|'	; R
 	.db	0x1B	; X (Escape)
@@ -2101,15 +2642,15 @@ keycode_2_character_table3:
 	.db	0x3E	; 4 (F4, when preceded by a null character)
 	.db	0x3B	; 1 (F1, when preceded by a null character)
 	.db	'/'	; C
-	.db	'['	; G
+	.db	']'	; G
 	.db	'~'	; M
 	.db	0x5C	; S (\)
 	.db	0x49	; Y (PageUp, when preceded by a null character)
 	.db	0x42	; 8 (F8, when preceded by a null character)
 	.db	0x3F	; 5 (F5, when preceded by a null character)
 	.db	0x3C	; 2 (F2, when preceded by a null character)
-	.db	'?'	; D
-	.db	']'	; H
+	.db	'{'	; D
+	.db	'?'	; H
 	.db	'#'	; N
 	.db	0xAC	; T (¬)
 	.db	0x51	; Z (PageDown, when preceded by a null character)
@@ -2133,24 +2674,58 @@ keycode_2_character_table3:
 	.db	0x09	; Right
 	.db	0x0d	; Enter
 
-str_fail:		.db	"Fail", 0
-str_okay:		.db	"OK", 0
-str_skip:		.db	"Skip", 0
-str_present:		.db	"Present", 0
-str_na:			.db	"N/A", 0
-str_cfg_mem:		.db	"Config memory: ", 0
-str_tst_mem:		.db	"Testing memory bank [", 0
-str_memory_card:	.db	"Memory Card", 0
-str_read_only:		.db	"Read Only", 0
-str_rtc:		.db	"RTC init: ", 0
-str_timeout:		.db	"Timeout: ", 0
-;str_keyb:		.db	"Keyboard init: ", 0
-str_battery:		.db	"Battery: ", 0
-str_init_header:	.db	" PAULMON ", 0
-str_init_select:	.db	"Select console:", 0
-str_init_oyster:	.db	"       O - Oyster Terminal", 0
-str_init_serial:	.db	"       S - Serial", 0
 
+; ###############################################################################################################
+; #                                                     OysterLib ISVs
+; ###############################################################################################################
+
+; Startup (not used obviously)
+.org    locat+0x1000
+
+; External interrupt 0 (INT0)
+.org    locat+0x1003
+
+; Timer 0 overflow
+.org    locat+0x100B
+
+; External interrupt 1 (INT1)
+.org    locat+0x1013
+
+; Timer 1 overflow
+.org    locat+0x101B
+
+; SIO0 (UART)
+.org    locat+0x1023
+
+; SIO1 (I2C, doesn't exist)
+.org    locat+0x102B
+
+; Timer 2 capture 0
+.org    locat+0x1033
+
+; Timer 2 capture 1
+.org    locat+0x103B
+
+; Timer 2 capture 2
+.org    locat+0x1043
+
+; Timer 2 capture 3
+.org    locat+0x104B
+
+; ADC completion
+.org    locat+0x1053
+
+; Timer 2 compare 0
+.org    locat+0x105B
+
+; Timer 2 compare 1
+.org    locat+0x1063
+
+; Timer 2 compare 2
+.org    locat+0x106B
+
+; Timer 2 overflow
+.org    locat+0x1073
 
 ; ###############################################################################################################
 ; #                                                       Commands
@@ -2162,7 +2737,7 @@ str_init_serial:	.db	"       S - Serial", 0
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0xd00
+.org    locat+0x1100
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     253,',',0,0		; id (253=startup)
 .db     0,0,0,0			; prompt code vector
@@ -2172,7 +2747,7 @@ str_init_serial:	.db	"       S - Serial", 0
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "System setup",0
-.org    locat+0xd40		; executable code begins here
+.org    locat+0x1140		; executable code begins here
 
 system_setup:
 	lcall	newline
@@ -2264,14 +2839,16 @@ system_setup_rtc_print:
 	lcall	pstr
 	lcall	newline
 
-system_setup_main_battery:
+system_setup_backup_battery:
+	mov	dptr, #str_backup
+	lcall	pstr
 	mov	dptr, #str_battery
 	lcall	pstr
-	lcall	battery_check_status
+	lcall	power_battery_backup_check_status
 	mov	dptr, #str_fail
-	jnc	system_setup_main_battery_print_status
+	jnc	system_setup_backup_battery_print_status
 	mov	dptr, #str_okay
-system_setup_main_battery_print_status:
+system_setup_backup_battery_print_status:
 	lcall	pstr
 	lcall	newline
 
@@ -2284,7 +2861,7 @@ system_setup_mcard_battery:
 	lcall	cout
 	mov	dptr, #str_battery
 	lcall	pstr
-	lcall	memory_ramcard_battery_check_status
+	lcall	power_battery_ramcard_check_status_warn
 	mov	dptr, #str_fail
 	jnc	system_setup_mcard_battery_print_status
 	mov	dptr, #str_okay
@@ -2300,6 +2877,7 @@ system_setup_continue:
 	lcall	piezo_beep							; Set tone
 
 	lcall	newline
+
 	ret
 
 
@@ -2309,7 +2887,7 @@ system_setup_continue:
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0xf00
+.org    locat+0x1300
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     249,',',0,0		; id (249=init)
 .db     0,0,0,0			; prompt code vector
@@ -2319,7 +2897,7 @@ system_setup_continue:
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "System init",0
-.org    locat+0xf40		; executable code begins here
+.org    locat+0x1340		; executable code begins here
 
 system_init:
 ; General system config
@@ -2328,9 +2906,12 @@ system_init:
 	mov	sfr_pwm1_80c562, #0						; PWM1 is connected to the piezo speaker
 	orl	pcon, #10h							; Set condition to load watchdog timer
 	mov	sfr_t3_80c562, #0						; Load watchdog timer
+	lcall	serial_mainport_enable						; Make sure main serial port enabled
 ; i2c config
 	setb	p1.6								; SCL
 	setb	p1.7								; SDA
+
+	lcall	system_config_restore						; Either restore an existing config, otherwise set defaults
 
 system_init_keyboard:
 	lcall	keyboard_reset
@@ -2339,9 +2920,6 @@ system_init_keyboard:
 	mov	keymap_offset, #0						; Select first keymap
 
 system_init_lcd:
-	mov	a, #4
-	lcall	lcd_set_contrast
-	lcall	lcd_set_backlight_on
 	lcall	lcd_init
 
 	mov	a, #10								; 1445 Hz
@@ -2396,7 +2974,6 @@ system_init_mode_select:
 system_init_mode_select_serial:
 	cjne	a, #'S',system_init_mode_select_oyster
 	clr	use_oysterlib
-	lcall	lcd_set_backlight_off
 	lcall	lcd_off
 	ret
 system_init_mode_select_oyster:
@@ -2404,3 +2981,1013 @@ system_init_mode_select_oyster:
 	setb	use_oysterlib
 	lcall	lcd_clear_screen
 	ret
+
+
+;---------------------------------------------------------;
+;                                                         ;
+;                          Setup                          ;
+;                                                         ;
+;---------------------------------------------------------;
+
+.org    locat+0x1400
+.db     0xA5,0xE5,0xE0,0xA5     ; signiture bytes
+.db     254,'!',0,0             ; id (254=cmd)
+.db     0,0,0,0                 ; prompt code vector
+.db     0,0,0,0                 ; reserved
+.db     0,0,0,0                 ; reserved
+.db     0,0,0,0                 ; reserved
+.db     0,0,0,0                 ; user defined
+.db     255,255,255,255         ; length and checksum (255=unused)
+.db     "Setup",0
+.org    locat+0x1440            ; executable code begins here
+
+
+; # Menu
+; #######
+setup:
+	push	stack_carry							; Save the use_oysterlib flag
+	jb	use_oysterlib, setup_menu_start
+	setb	use_oysterlib
+	lcall	lcd_init
+
+setup_menu_start:
+	lcall	lcd_clear_screen
+	mov	tmp_var, #0
+
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x07					; 1st row, 5th column
+	mov	dptr, #str_setup_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+setup_menu_loop:
+
+	clr	lcd_glyph_invert
+	mov	a, tmp_var
+	cjne	a, #0, setup_menu_loop_select0
+	setb	lcd_glyph_invert
+setup_menu_loop_select0:
+	mov	lcd_start_position, #0x65					; 4th row, 6th column
+	mov	dptr, #str_setup_screenkey
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_invert
+	mov	a, tmp_var
+	cjne	a, #1, setup_menu_loop_select1
+	setb	lcd_glyph_invert
+setup_menu_loop_select1:
+	mov	lcd_start_position, #0x86					; 5th row, 7th column
+	mov	dptr, #str_setup_datetime
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_invert
+	mov	a, tmp_var
+	cjne	a, #2, setup_menu_loop_select2
+	setb	lcd_glyph_invert
+setup_menu_loop_select2:
+	mov	lcd_start_position, #0xa4					; 6th row, 5th column
+	mov	dptr, #str_setup_serial
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_invert
+	mov	a, tmp_var
+	cjne	a, #3, setup_menu_loop_select3
+	setb	lcd_glyph_invert
+setup_menu_loop_select3:
+	mov	lcd_start_position, #0xc7					; 6th row, 8th column
+	mov	dptr, #str_setup_power
+	lcall	lcd_pstr
+
+setup_menu_loop_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_menu_loop_keyboard_scan
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+setup_menu_loop_keyboard_scan_up:
+	cjne	a, #0x05, setup_menu_loop_keyboard_scan_down
+	mov	a, tmp_var
+	jz	setup_menu_loop
+	dec	a
+	mov	tmp_var, a
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_down:
+	cjne	a, #0x06, setup_menu_loop_keyboard_scan_enter
+	mov	a, tmp_var
+	inc	a
+	mov	tmp_var, a
+	jnb	acc.2, setup_menu_loop
+	mov	tmp_var, #0x03
+	sjmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_enter:
+	cjne	a, #0x2F, setup_menu_loop_keyboard_scan_cancel
+	mov	a, tmp_var
+setup_menu_loop_keyboard_scan_enter_screenkey:
+	cjne	a, #0x00, setup_menu_loop_keyboard_scan_enter_datetime
+	acall	setup_screenkey
+	ajmp	setup_menu_start
+setup_menu_loop_keyboard_scan_enter_datetime:
+	cjne	a, #0x01, setup_menu_loop_keyboard_scan_enter_serial
+	acall	setup_datetime
+	ajmp	setup_menu_start
+setup_menu_loop_keyboard_scan_enter_serial:
+	cjne	a, #0x02, setup_menu_loop_keyboard_scan_enter_power
+	lcall	setup_serial
+	ajmp	setup_menu_start
+setup_menu_loop_keyboard_scan_enter_power:
+	cjne	a, #0x03, setup_menu_loop_keyboard_scan_enter_other
+	lcall	setup_power
+	ajmp	setup_menu_start
+setup_menu_loop_keyboard_scan_enter_other:
+	ajmp	setup_menu_loop
+setup_menu_loop_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_menu_loop_keyboard_scan
+	lcall	system_config_save						; Calculate checksums and save config to RTC memory
+
+	pop	acc								; Get the use_oysterlib flag
+	mov	c, acc.0							; Restore use_oysterlib
+	mov	use_oysterlib, c
+	jb	use_oysterlib, setup_menu_finish
+	lcall	lcd_off
+	ret
+setup_menu_finish:
+	lcall	lcd_clear_screen
+	ret
+
+; # Screen/Keyboard
+; ##################
+setup_screenkey:
+	lcall	lcd_clear_screen
+	mov	tmp_var, #0
+
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x00					; 1st row, 1st column
+	mov	dptr, #str_setupsk_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+	clr	lcd_glyph_invert
+
+	mov	lcd_start_position, #0x64					; 3rd row, 5th column
+	mov	dptr, #str_setupsk_contrast
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0x84					; 4th row, 5th column
+	mov	dptr, #str_setupsk_backlight
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0xA4					; 5th row, 5th column
+	mov	dptr, #str_setupsk_keyclick
+	lcall	lcd_pstr
+
+setup_screenkey_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_screenkey_keyboard_scan
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+setup_screenkey_keyboard_scan_up:
+	cjne	a, #0x05, setup_screenkey_keyboard_scan_down
+	lcall	lcd_set_contrast_inc
+	sjmp	setup_screenkey_keyboard_scan
+setup_screenkey_keyboard_scan_down:
+	cjne	a, #0x06, setup_screenkey_keyboard_scan_b
+	lcall	lcd_set_contrast_dec
+	sjmp	setup_screenkey_keyboard_scan
+setup_screenkey_keyboard_scan_b:
+	cjne	a, #0x08, setup_screenkey_keyboard_scan_c
+	lcall	lcd_set_backlight_toggle
+	sjmp	setup_screenkey_keyboard_scan
+setup_screenkey_keyboard_scan_c:
+	cjne	a, #0x10, setup_screenkey_keyboard_scan_cancel
+	lcall	keyboard_click_toggle
+	sjmp	setup_screenkey_keyboard_scan
+setup_screenkey_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_screenkey_keyboard_scan
+	ret
+
+; # Date/Time
+; ############
+; # tmp_var - used to hold the current editting state
+;	7 - Reg. bank 2 loaded
+;	6 - Alarm date/time
+;	5 - Editting date
+;	4 - Editting time
+;	3 - 1st or 2nd digit
+;	2 - 3rd number
+;	1 - 2nd	number
+;	0 - 1st number
+setup_datetime:
+	mov	tmp_var, #0x00							; Reset edit state
+	orl	psw, #0b00001000						; Select the second register bank
+	lcall	lcd_clear_screen
+
+setup_datetime_loop:
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x00					; 1st row, 1st column
+	mov	dptr, #str_setupdt_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+	clr	lcd_glyph_invert
+
+	lcall	rtc_get_datetime
+	mov	a, r5								; We need to adjust the year according to the saved current_year
+	lcall	rtc_calc_year
+	mov	r5, a
+	mov	a, tmp_var							; Check editting state
+	jz	setup_datetime_loop_print_dt					; If we're not doing anything just print
+	jb	acc.7, setup_datetime_loop_print_dt				; If we've already made a copy just print
+	jb	acc.6, setup_datetime_loop_print_dt				; If we're editting the alarm just print
+	lcall	setup_datetime_copy_rb1_2_rb2					; Make a copy of this data
+	setb	acc.7								; Set state flag to show we have made a copy of the data
+	mov	tmp_var, a							; Save state
+
+setup_datetime_loop_print_dt:
+; Date
+	mov	a, tmp_var							; Check what we are editting
+	jz	setup_datetime_loop_print_date					; If we're not editting, just continue
+	jb	acc.6, setup_datetime_loop_print_date				; If we're editting the alarm, just continue
+	jnb	acc.5, setup_datetime_loop_print_date				; If we're not editting the date, just continue
+	anl	psw, #0b11100111						; We're editting the date
+	orl	psw, #0b00010000						; So select the third register bank
+setup_datetime_loop_print_date:
+	clr	lcd_glyph_invert
+	mov	lcd_start_position, #0x68					; 4th row, 9th column
+	mov	dptr, #str_setupdt_date
+	lcall	lcd_pstr
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_date_day				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_date_day			; Editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_date_day			; Not editting date, don't invert
+	jnb	acc.0, setup_datetime_loop_print_date_day			; Not editting day, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_date_day:
+	mov	a, r3								; Get day
+	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
+	mov	a, #'/'
+	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_date_month				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_date_month			; Editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_date_month			; Not editting date, don't invert
+	jnb	acc.1, setup_datetime_loop_print_date_month			; Not editting month, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_date_month:
+	mov	a, r4								; Get month
+	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
+	mov	a, #'/'
+	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_date_year				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_date_year			; Editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_date_year			; Not editting date, don't invert
+	jnb	acc.2, setup_datetime_loop_print_date_year			; Not editting year, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_date_year:
+	mov	a, r5								; Add 2 lsbs from the RTC
+	lcall	print_bcd_digit
+	anl	psw, #0b11100111						; Re-select the second register bank
+	orl	psw, #0b00001000
+
+; Time
+	mov	a, tmp_var							; Check what we are editting
+	jz	setup_datetime_loop_print_time					; If we're not editting, just continue
+	jb	acc.6, setup_datetime_loop_print_time				; If we're editting the alarm, just continue
+	jnb	acc.4, setup_datetime_loop_print_time				; If we're not editting the time, just continue
+	anl	psw, #0b11100111						; We're editting the time
+	orl	psw, #0b00010000						; So select the third register bank
+setup_datetime_loop_print_time:
+	clr	lcd_glyph_invert
+	mov	lcd_start_position, #0x88					; 5th row, 9th column
+	mov	dptr, #str_setupdt_time
+	lcall	lcd_pstr
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_time_hour				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_time_hour			; Editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_time_hour			; Not editting time, don't invert
+	jnb	acc.0, setup_datetime_loop_print_time_hour			; Not editting hour, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_time_hour:
+	mov	a, r2
+	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
+	mov	a, #':'
+	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_time_minute				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_time_minute			; Editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_time_minute			; Not editting time, don't invert
+	jnb	acc.1, setup_datetime_loop_print_time_minute			; Not editting minute, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_time_minute:
+	mov	a, r1
+	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
+	mov	a, #':'
+	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_time_second				; Not editting, don't invert
+	jb	acc.6, setup_datetime_loop_print_time_second			; Editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_time_second			; Not editting time, don't invert
+	jnb	acc.2, setup_datetime_loop_print_time_second			; Not editting second, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_time_second:
+	mov	a, r0
+	lcall	print_bcd_digit
+	anl	psw, #0b11100111						; Re-select the second register bank
+	orl	psw, #0b00001000
+
+; Alarm status
+	clr	lcd_glyph_invert
+	mov	lcd_start_position, #0xa3					; 6th row, 4th column
+	mov	dptr, #str_setupdt_alarm
+	lcall	lcd_pstr
+	mov	b, #rtc_addr1
+	lcall	rtc_get_alarm_config
+	mov	dptr, #str_fail
+	jc	setup_datetime_loop_alarm_sprint
+	mov	dptr, #str_disabled
+	jnb	acc.7, setup_datetime_loop_alarm_sprint
+	mov	dptr, #str_enabled
+setup_datetime_loop_alarm_sprint:
+	lcall	lcd_pstr
+
+	lcall	rtc_get_alarm_datetime
+	mov	a, r5								; We need to adjust the year according to the saved current_year
+	lcall	rtc_calc_year
+	mov	r5, a
+	mov	a, tmp_var							; Check editting state
+	jz	setup_datetime_loop_print_adt					; If we're not doing anything just print
+	jb	acc.7, setup_datetime_loop_print_adt				; If we've already made a copy just print
+	jnb	acc.6, setup_datetime_loop_print_adt				; If we're not editting the alarm just print
+	lcall	setup_datetime_copy_rb1_2_rb2					; Make a copy of this data
+	setb	acc.7								; Set state flag to show we have made a copy of the data
+	mov	tmp_var, a							; Save state
+
+setup_datetime_loop_print_adt:
+; Alarm date
+	mov	a, tmp_var							; Check what we are editting
+	jz	setup_datetime_loop_print_adate					; If we're not editting, just continue
+	jnb	acc.6, setup_datetime_loop_print_adate				; If we're not editting the alarm, just continue
+	jnb	acc.5, setup_datetime_loop_print_adate				; If we're not editting the date, just continue
+	anl	psw, #0b11100111						; We're editting the date
+	orl	psw, #0b00010000						; So select the third register bank
+setup_datetime_loop_print_adate:
+	clr	lcd_glyph_invert
+	mov	lcd_start_position, #0xc8					; 7th row, 9th column
+	mov	dptr, #str_setupdt_adate
+	lcall	lcd_pstr
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_adate_day				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_adate_day			; Not editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_adate_day			; Not editting date, don't invert
+	jnb	acc.0, setup_datetime_loop_print_adate_day			; Not editting day, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_adate_day:
+	mov	a, r3								; Get day
+	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
+	mov	a, #'/'
+	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_adate_month				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_adate_month			; Not editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_adate_month			; Not editting date, don't invert
+	jnb	acc.1, setup_datetime_loop_print_adate_month			; Not editting month, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_adate_month:
+	mov	a, r4								; Get month
+	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
+	mov	a, #'/'
+	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_adate_year				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_adate_year			; Not editting alarm, don't invert
+	jnb	acc.5, setup_datetime_loop_print_adate_year			; Not editting date, don't invert
+	jnb	acc.2, setup_datetime_loop_print_adate_year			; Not editting year, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_adate_year:
+	mov	a, r5								; Add 2 lsbs from the RTC
+	lcall	print_bcd_digit
+	anl	psw, #0b11100111						; Re-select the second register bank
+	orl	psw, #0b00001000
+
+; Alarm time
+	mov	a, tmp_var							; Check what we are editting
+	jz	setup_datetime_loop_print_atime					; If we're not editting, just continue
+	jnb	acc.6, setup_datetime_loop_print_atime				; If we're not editting the alarm, just continue
+	jnb	acc.4, setup_datetime_loop_print_atime				; If we're not editting the time, just continue
+	anl	psw, #0b11100111						; We're editting the time
+	orl	psw, #0b00010000						; So select the third register bank
+setup_datetime_loop_print_atime:
+	clr	lcd_glyph_invert
+	mov	lcd_start_position, #0xe8					; 8th row, 9th column
+	mov	dptr, #str_setupdt_atime
+	lcall	lcd_pstr
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_atime_hour				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_atime_hour			; Not editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_atime_hour			; Not editting time, don't invert
+	jnb	acc.0, setup_datetime_loop_print_atime_hour			; Not editting hour, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_atime_hour:
+	mov	a, r2
+	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
+	mov	a, #':'
+	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_atime_minute				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_atime_minute			; Not editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_atime_minute			; Not editting time, don't invert
+	jnb	acc.1, setup_datetime_loop_print_atime_minute			; Not editting minute, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_atime_minute:
+	mov	a, r1
+	lcall	print_bcd_digit
+	clr	lcd_glyph_invert
+	mov	a, #':'
+	lcall	oyster_cout
+	mov	a, tmp_var							; Check whether to invert the digit field
+	jz	setup_datetime_loop_print_atime_second				; Not editting, don't invert
+	jnb	acc.6, setup_datetime_loop_print_atime_second			; Not editting alarm, don't invert
+	jnb	acc.4, setup_datetime_loop_print_atime_second			; Not editting time, don't invert
+	jnb	acc.2, setup_datetime_loop_print_atime_second			; Not editting second, don't invert
+	setb	lcd_glyph_invert
+setup_datetime_loop_print_atime_second:
+	mov	a, r0
+	lcall	print_bcd_digit
+	anl	psw, #0b11100111						; Re-select the second register bank
+	orl	psw, #0b00001000
+
+setup_datetime_keyboard_scan:
+	lcall	keyboard_scan
+	jb	keyboard_new_char, setup_datetime_keyboard_scan_new_char
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_new_char:
+	clr	keyboard_new_char
+
+	mov	a, tmp_var							; Check whether we are editting
+	jnz	setup_datetime_keyboard_scan_edit
+	ljmp	setup_datetime_keyboard_scan_view
+
+; # Keyboard routine when editing date/time data
+; ###############################################
+setup_datetime_keyboard_scan_edit:
+	mov	a, keycode_raw							; First check for non ASCII keycodes
+setup_datetime_keyboard_scan_edit_cancel:
+	cjne	a, #0x07, setup_datetime_keyboard_scan_edit_larrow		; If cancel pressed
+	mov	tmp_var, #0x00							; Stop editing
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_edit_larrow:
+	cjne	a, #0x2d, setup_datetime_keyboard_scan_edit_rarrow		; If left arrow pressed
+	mov	a, tmp_var							; Get the current editting state
+	jb	acc.0, setup_datetime_keyboard_scan_edit_larrow_finish		; If we are already at the start, don't do anything
+	mov	b, a								; Copy state
+	anl	a, #0x07							; Filter everything but digit flags
+	anl	b, #0xf8							; Clear digit flags
+	rr	a								; Go back one digit
+	orl	a, b								; Recombine digit flags and the rest of the edit state
+	clr	acc.3								; We've moved digit so reset which character we're editing
+	mov	tmp_var, a							; Save state
+setup_datetime_keyboard_scan_edit_larrow_finish:
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_edit_rarrow:
+	cjne	a, #0x2e, setup_datetime_keyboard_scan_edit_enter		; If right arrow pressed
+	mov	a, tmp_var							; Get the current editting state
+	jb	acc.2, setup_datetime_keyboard_scan_edit_rarrow_finish		; If we are already at the end, don't do anything
+	mov	b, a								; Copy state
+	anl	a, #0x07							; Filter everything but digit flags
+	anl	b, #0xf8							; Clear digit flags
+	rl	a								; Go forward one digit
+	orl	a, b								; Recombine digit flags and the rest of the edit state
+	clr	acc.3								; We've moved digit so reset which character we're editing
+	mov	tmp_var, a							; Save state
+setup_datetime_keyboard_scan_edit_rarrow_finish:
+	ajmp	setup_datetime_loop
+setup_datetime_keyboard_scan_edit_enter:
+	cjne	a, #0x2f, setup_datetime_keyboard_scan_edit_ascii		; If enter pressed
+	mov	a, tmp_var							; Are we editing a date?
+	jnb	acc.5, setup_datetime_keyboard_scan_edit_enter_refresh		; No, just continue
+	jb	acc.6, setup_datetime_keyboard_scan_edit_enter_amend_year	; Is this the current date we're editing
+	mov	current_year, rb2r5						; Then update current_year
+setup_datetime_keyboard_scan_edit_enter_amend_year:
+	anl	rb2r5, #0x03							; RTC stores only 2 lsbs of year
+setup_datetime_keyboard_scan_edit_enter_refresh:
+	mov	a, tmp_var							; Need to load the original data
+	jb	acc.6, setup_datetime_keyboard_scan_edit_enter_get_adt		; So are we editing the alarm?
+	lcall	rtc_get_datetime
+	sjmp	setup_datetime_keyboard_scan_edit_enter_merge
+setup_datetime_keyboard_scan_edit_enter_get_adt:
+	lcall	rtc_get_alarm_datetime
+setup_datetime_keyboard_scan_edit_enter_merge:					; Now we need to merge the data
+	mov	a, tmp_var
+	jb	acc.4, setup_datetime_keyboard_scan_edit_enter_merge_time	; Are we editing the time
+setup_datetime_keyboard_scan_edit_enter_merge_date:
+	mov	rb1r3, rb2r3							; Copy day
+	mov	rb1r4, rb2r4							; Copy month
+	mov	rb1r5, rb2r5							; Copy year
+	sjmp	setup_datetime_keyboard_scan_edit_enter_update_rtc
+setup_datetime_keyboard_scan_edit_enter_merge_time:
+	mov	rb1r0, rb2r0							; Copy seconds
+	mov	rb1r1, rb2r1							; Copy minutes
+	mov	rb1r2, rb2r2							; Copy hours
+setup_datetime_keyboard_scan_edit_enter_update_rtc:
+	jb	acc.6, setup_datetime_keyboard_scan_edit_enter_update_rtc_alarm
+	lcall	rtc_stop
+	lcall	rtc_set_datetime
+	lcall	rtc_start
+	sjmp	setup_datetime_keyboard_scan_edit_enter_finish
+setup_datetime_keyboard_scan_edit_enter_update_rtc_alarm:
+	lcall	rtc_set_alarm_datetime
+setup_datetime_keyboard_scan_edit_enter_finish:
+	mov	tmp_var, #0x00							; Stop editing
+	ljmp	setup_datetime_loop
+setup_datetime_keyboard_scan_edit_ascii:
+	mov	a, keycode_ascii						; Now check for ASCII characters
+	cjne	a, #'0', setup_datetime_keyboard_scan_edit_ascii_cmp		; Check for characters less than '0'
+setup_datetime_keyboard_scan_edit_ascii_cmp:
+	jc	setup_datetime_keyboard_scan_edit_other				; Not a digit so loop
+	subb	a, #'0'								; Convert character to integer
+	cjne	a, #0x0a, setup_datetime_keyboard_scan_edit_ascii_digit_check	; Check whether a digit
+setup_datetime_keyboard_scan_edit_ascii_digit_check:
+	jnc	setup_datetime_keyboard_scan_edit_other				; Not a digit so loop
+	mov	b, a								; Copy the integer
+	lcall	setup_datetime_updaterb2					; Update the relavent digit
+	jc	setup_datetime_keyboard_scan_edit_other				; On error, loop
+	mov	a, tmp_var
+	jnb	acc.3, setup_datetime_keyboard_scan_edit_ascii_digit_check_next	; Check whether to select next field
+	jb	acc.2, setup_datetime_keyboard_scan_edit_ascii_digit_check_next	; If the last field is already selected don't update
+	mov	b, a								; Copy value
+	anl	a, #0x07							; Filter everything but digit flags
+	anl	b, #0xf8							; Clear digit flags
+	rl	a								; Go forward one digit
+	orl	a, b								; Recombine digit flags and the rest of the edit state
+setup_datetime_keyboard_scan_edit_ascii_digit_check_next:
+	cpl	acc.3								; Select next digit
+	mov	tmp_var, a							; Save state
+setup_datetime_keyboard_scan_edit_other:
+	ljmp	setup_datetime_loop
+
+; # Keyboard routine when viewing date/time data
+; ###############################################
+setup_datetime_keyboard_scan_view:
+	mov	a, keycode_raw
+setup_datetime_keyboard_scan_view_m:
+	cjne	a, #0x12, setup_datetime_keyboard_scan_view_d
+	mov	b, #rtc_addr1
+	lcall	rtc_get_alarm_config						; Get the current alarm config
+	jc	setup_datetime_keyboard_scan_view_other				; Exit on error
+	mov	b, a								; Copy alarm config
+	anl	b, #0x7f							; Clear the alarm enable flag
+	cpl	a								; Toggle alarm enabled flag
+	anl	a, #0x80							; Extract just the alarm enabled flag
+	orl	a, b								; Combine alarm config with new alarm enabled flag state
+	mov	b, #rtc_addr1
+	lcall	rtc_set_alarm_config						; Write config back to RTC
+	ljmp	setup_datetime_loop
+setup_datetime_keyboard_scan_view_d:
+	cjne	a, #0x18, setup_datetime_keyboard_scan_view_t
+	mov	tmp_var, #0x21
+	ljmp	setup_datetime_loop
+setup_datetime_keyboard_scan_view_t:
+	cjne	a, #0x1b, setup_datetime_keyboard_scan_view_a
+	mov	tmp_var, #0x11
+	ljmp	setup_datetime_loop
+setup_datetime_keyboard_scan_view_a:
+	cjne	a, #0x00, setup_datetime_keyboard_scan_view_i
+	mov	tmp_var, #0x61
+	ljmp	setup_datetime_loop
+setup_datetime_keyboard_scan_view_i:
+	cjne	a, #0x21, setup_datetime_keyboard_scan_view_cancel
+	mov	tmp_var, #0x51
+	ljmp	setup_datetime_loop
+setup_datetime_keyboard_scan_view_cancel:
+	cjne	a, #0x07, setup_datetime_keyboard_scan_view_other
+	anl	psw, #0b11100111						; Return to 1st register bank
+	ret
+setup_datetime_keyboard_scan_view_other:
+	ljmp	setup_datetime_loop
+
+; # Routine to copy the entire register bank 2 to bank 3
+; #######################################################
+setup_datetime_copy_rb1_2_rb2:
+	mov	rb2r0, rb1r0
+	mov	rb2r1, rb1r1
+	mov	rb2r2, rb1r2
+	mov	rb2r3, rb1r3
+	mov	rb2r4, rb1r4
+	mov	rb2r5, rb1r5
+	ret
+
+; # Routine to update a single digit in the copy of date/time
+; #
+; # In:
+; #   B - Contains the digit that was read in (assume 0-9)
+; #   RB2 - Copy of the date/time to update
+; # Out:
+; #   Carry - Error
+; ############################################################
+setup_datetime_updaterb2:
+	mov	a, tmp_var
+	jb	acc.5, setup_datetime_updaterb2_date				; Update date digit
+	jnb	acc.4, setup_datetime_updaterb2_no_match
+	ajmp	setup_datetime_updaterb2_time					; Update time digit
+setup_datetime_updaterb2_no_match:
+	setb	c								; Set error (we shouldn't get here)
+	ret
+
+; # Update date
+; ##############
+setup_datetime_updaterb2_date:
+	mov	a, tmp_var
+	jb	acc.0, setup_datetime_updaterb2_date_day
+	jb	acc.1, setup_datetime_updaterb2_date_month
+	jb	acc.2, setup_datetime_updaterb2_date_year
+	ajmp	setup_datetime_updaterb2_error					; Shouldn't ever get here
+setup_datetime_updaterb2_date_day:
+	jb	acc.3, setup_datetime_updaterb2_date_day_d2
+setup_datetime_updaterb2_date_day_d1:						; Valid: 0-3
+	mov	a, b
+	cjne	a, #0x04, setup_datetime_updaterb2_date_day_d1_cmp		; Check whether new d1 is less than 4
+setup_datetime_updaterb2_date_day_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r3							; Get day
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r3, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_day_d2:						; Valid: 0-9 (d1 = 0-2), 0/1 (d1 = 3)
+	mov	a, rb2r3							; Get day
+	anl	a, #0xf0							; Get first digit
+	swap	a
+	cjne	a, #0x03, setup_datetime_updaterb2_date_day_d2_check		; Check whether first digit is less than 3
+setup_datetime_updaterb2_date_day_d2_check:
+	jc	setup_datetime_updaterb2_date_day_d2_update			; Less than 3, just update
+	mov	a, b
+	cjne	a, #0x02, setup_datetime_updaterb2_date_day_d2_check_cmp	; Check the new digit is less than 2
+setup_datetime_updaterb2_date_day_d2_check_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+setup_datetime_updaterb2_date_day_d2_update:
+	mov	a, rb2r3							; Get day
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	jnz	setup_datetime_updaterb2_date_day_d2_save			; Check that user hasn't entered '00'
+	mov	a, #0x01
+setup_datetime_updaterb2_date_day_d2_save:
+	mov	rb2r3, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_month:
+	jb	acc.3, setup_datetime_updaterb2_date_month_d2
+setup_datetime_updaterb2_date_month_d1:						; Valid: 0/1
+	mov	a, b
+	cjne	a, #0x02, setup_datetime_updaterb2_date_month_d1_cmp		; Check whether new d1 is less than 2
+setup_datetime_updaterb2_date_month_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r4							; Get month
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r4, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_month_d2:						; Valid: 0-9 (d1 = 0), 0-2 (d1 = 1)
+	mov	a, rb2r4							; Get month
+	jnb	acc.4, setup_datetime_updaterb2_date_month_d2_update		; Check whether first digit is 1, and if not just update
+	mov	a, b
+	cjne	a, #0x03, setup_datetime_updaterb2_date_month_d2_cmp		; Check whether new digit is less than 3
+setup_datetime_updaterb2_date_month_d2_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+setup_datetime_updaterb2_date_month_d2_update:
+	mov	a, rb2r4							; Get month
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	jnz	setup_datetime_updaterb2_date_month_d2_save			; Check that user hasn't entered '00'
+	mov	a, #0x01
+setup_datetime_updaterb2_date_month_d2_save:
+	mov	rb2r4, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_year:
+	jb	acc.3, setup_datetime_updaterb2_date_year_d2
+setup_datetime_updaterb2_date_year_d1:						; Valid: 0-9
+	mov	a, rb2r5							; Get year
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r5, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_date_year_d2:						; Valid: 0-9
+	mov	a, rb2r5							; Get year
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	mov	rb2r5, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+
+; # These exit functions are shared between the previous and next functions
+; ##########################################################################
+setup_datetime_updaterb2_finish:
+	clr	c
+	ret
+setup_datetime_updaterb2_error:
+	setb	c
+	ret
+
+; # Update time
+; ##############
+setup_datetime_updaterb2_time:
+	mov	a, tmp_var
+	jb	acc.0, setup_datetime_updaterb2_time_hour
+	jb	acc.1, setup_datetime_updaterb2_time_minute
+	jb	acc.2, setup_datetime_updaterb2_time_second
+	sjmp	setup_datetime_updaterb2_error					; Shouldn't ever get here
+setup_datetime_updaterb2_time_hour:
+	jb	acc.3, setup_datetime_updaterb2_time_hour_d2
+setup_datetime_updaterb2_time_hour_d1:						; Valid: 0-2
+	mov	a, b
+	cjne	a, #0x03, setup_datetime_updaterb2_time_hour_d1_cmp		; Check whether new d1 is less than 3
+setup_datetime_updaterb2_time_hour_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r2							; Get hour
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r2, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_hour_d2:						; Valid: 0-9 (d1 = 0/1), 0-3 (d1 = 2)
+	mov	a, rb2r2							; Get hour
+	anl	a, #0xf0							; Get first digit
+	swap	a
+	cjne	a, #0x02, setup_datetime_updaterb2_time_hour_d2_check		; Check whether first digit is less than 2
+setup_datetime_updaterb2_time_hour_d2_check:
+	jc	setup_datetime_updaterb2_time_hour_d2_update			; Less than 2, just update
+	mov	a, b
+	cjne	a, #0x04, setup_datetime_updaterb2_time_hour_d2_check_cmp	; Check whether new digit is than 4
+setup_datetime_updaterb2_time_hour_d2_check_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+setup_datetime_updaterb2_time_hour_d2_update:
+	mov	a, rb2r2							; Get hour
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	mov	rb2r2, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_minute:
+	jb	acc.3, setup_datetime_updaterb2_time_minute_d2
+setup_datetime_updaterb2_time_minute_d1:					; Valid: 0-5
+	mov	a, b
+	cjne	a, #0x06, setup_datetime_updaterb2_time_minute_d1_cmp		; Check whether new d1 is less than 6
+setup_datetime_updaterb2_time_minute_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r1							; Get minutes
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r1, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_minute_d2:					; Valid: 0-9
+	mov	a, rb2r1							; Get minutes
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	mov	rb2r1, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_second:
+	jb	acc.3, setup_datetime_updaterb2_time_second_d2
+setup_datetime_updaterb2_time_second_d1:					; Valid: 0-5
+	mov	a, b
+	cjne	a, #0x06, setup_datetime_updaterb2_time_second_d1_cmp		; Check whether new d1 is less than 6
+setup_datetime_updaterb2_time_second_d1_cmp:
+	jnc	setup_datetime_updaterb2_error					; No, new digit is invalid
+	mov	a, rb2r0							; Get seconds
+	anl	a, #0x0f							; Clear first digit
+	xch	a, b								; Swap A and B
+	swap	a								; Move new integer in to the position of the first digit
+	orl	a, b								; Combine old and new
+	mov	rb2r0, a							; Save new value
+	sjmp	setup_datetime_updaterb2_finish
+setup_datetime_updaterb2_time_second_d2:					; Valid: 0-9
+	mov	a, rb2r0							; Get seconds
+	anl	a, #0xf0							; Clear second digit
+	orl	a, b								; Combine old and new
+	mov	rb2r0, a							; Save new value
+	ajmp	setup_datetime_updaterb2_finish
+
+; # Serial
+; #########
+setup_serial:
+	lcall	lcd_clear_screen
+	mov	tmp_var, #0x00
+
+setup_serial_loop:
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x00					; 1st row, 1st column
+	mov	dptr, #str_setupsrl_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+	clr	lcd_glyph_invert
+
+	mov	lcd_start_position, #0x67					; 4th row, 8th column
+	mov	dptr, #str_setupsrl_mport
+	lcall	lcd_pstr
+	mov	a, sys_props_save
+	anl	a, #0x02
+	mov	dptr, #str_disabled
+	jz	setup_serial_loop_print_mpstate
+	mov	dptr, #str_enabled
+setup_serial_loop_print_mpstate:
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0x87					; 5th row, 8th column
+	mov	dptr, #str_setupsrl_baud
+	lcall	lcd_pstr
+	mov	tmp_var, #0xff							; Baud rate pointer (setup so it rolls over)
+	mov	dptr, #baud_rate_table
+setup_serial_loop_baudrate_identify:
+	inc	tmp_var
+	mov	a, tmp_var							; Get current offset
+	movc	a, @a+dptr
+	subb	a, baud_save+3							; Subtract current baud rate to test if we have a match
+	jnz	setup_serial_loop_baudrate_identify
+	mov	a, tmp_var
+	mov	b, #0x06							; Size of baud strings
+	mul	ab
+	mov	dptr, #baud_rate_str_table
+	add	a, dpl								; Add calculated offset to pointer
+	mov	dpl, a
+	lcall	lcd_pstr
+
+setup_serial_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_serial_loop
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+setup_serial_keyboard_scan_b:
+	cjne	a, #0x08, setup_serial_keyboard_scan_m
+	inc	tmp_var								; Increment baud offset
+	mov	a, tmp_var
+	cjne	a, #0x08, setup_serial_keyboard_scan_b_set_baud			; Make sure we haven't overrun
+	mov	tmp_var, #0x00							; Reset offset
+setup_serial_keyboard_scan_b_set_baud:
+	mov	a, tmp_var
+	mov	dptr, #baud_rate_table
+	movc	a, @a+dptr							; Get new baud rate
+	lcall	serial_baudsave_set_reload					; Set new baud rate
+	sjmp	setup_serial_loop
+setup_serial_keyboard_scan_m:
+	cjne	a, #0x12, setup_serial_keyboard_scan_cancel
+	mov	a, sys_props_save						; Get saved bits
+	mov	c, acc.1							; Get the bit we're interested in
+	cpl	c								; Invert it
+	anl	sys_props_save, #0xfd						; Clear the current setting
+	jnc	setup_serial_keyboard_scan_m_set_mpstate
+	orl	sys_props_save, #0x02						; Set bit
+setup_serial_keyboard_scan_m_set_mpstate:
+	lcall	serial_mainport_set_state
+	ljmp	setup_serial_loop
+setup_serial_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_serial_keyboard_scan_other
+	ret
+setup_serial_keyboard_scan_other:
+	ljmp	setup_serial_loop
+
+; # Power
+; ########
+setup_power:
+	lcall	lcd_clear_screen
+	mov	tmp_var, #0
+
+setup_power_loop:
+	setb	lcd_glyph_doublewidth
+	setb	lcd_glyph_doubleheight
+	setb	lcd_glyph_invert
+	mov	lcd_start_position, #0x00					; 1st row, 1st column
+	mov	dptr, #str_setuppwr_header
+	lcall	lcd_pstr
+
+	clr	lcd_glyph_doublewidth
+	clr	lcd_glyph_doubleheight
+	clr	lcd_glyph_invert
+
+	mov	lcd_start_position, #0x64					; 4th row, 5th column
+	mov	dptr, #str_setuppwr_cstatus
+	lcall	lcd_pstr
+	lcall	power_battery_main_check_charging
+	mov	dptr, #str_setuppwr_charged
+	jnc	setup_power_loop_print_cstatus
+	mov	dptr, #str_setuppwr_charging
+setup_power_loop_print_cstatus:
+	lcall	lcd_pstr
+
+	mov	lcd_start_position, #0x85					; 4th row, 6th column
+	mov	dptr, #str_backup
+	lcall	lcd_pstr
+	mov	dptr, #str_battery
+	lcall	lcd_pstr
+	lcall	power_battery_backup_check_status
+	mov	dptr, #str_fail
+	jnc	setup_power_loop_print_bbattery
+	mov	dptr, #str_okay
+setup_power_loop_print_bbattery:
+	lcall	lcd_pstr
+
+	lcall	memory_ramcard_present						; Check if ram card is present
+	jnc	setup_power_keyboard_scan
+	mov	lcd_start_position, #0x81					; 4th row, 2nd column
+	mov	dptr, #str_memory_card
+	lcall	lcd_pstr
+	mov	dptr, #str_battery
+	lcall	lcd_pstr
+	lcall	power_battery_ramcard_check_status_warn
+	mov	dptr, #str_okay
+	jc	setup_power_loop_print_mcbattery
+	lcall	power_battery_ramcard_check_status_fail
+	mov	dptr, #str_fail
+	jnc	setup_power_loop_print_mcbattery
+	mov	dptr, #str_warn
+setup_power_loop_print_mcbattery:
+	lcall	lcd_pstr
+
+setup_power_keyboard_scan:
+	lcall	keyboard_scan
+	jnb	keyboard_new_char, setup_power_loop
+	clr	keyboard_new_char
+
+	mov	a, keycode_raw
+setup_power_keyboard_scan_cancel:
+	cjne	a, #0x07, setup_power_keyboard_scan_other
+	ret
+setup_power_keyboard_scan_other:
+	ajmp	setup_power_loop
+
+
+; ###############################################################################################################
+; #                                                     Strings
+; ###############################################################################################################
+
+str_setup_header:	.db	"  SETUP  ", 0
+str_setup_screenkey:	.db	"   Screen/Keyboard   ", 0
+str_setup_datetime:	.db	"   Set Date/Time   ", 0
+str_setup_serial:	.db	"   Configure Serial   ", 0
+str_setup_power:	.db	"   Power Status   ", 0
+str_setupsk_header:	.db	"Screen/Keyboard", 0
+str_setupsk_contrast:	.db	0x0a,"/",0x0b," - Adjust contrast", 0
+str_setupsk_backlight:	.db	"  B - Toggle backlight", 0
+str_setupsk_keyclick:	.db	"  C - Toggle key click", 0
+str_setupdt_header:	.db	"Date/Time", 0
+str_setupdt_date:	.db	"(D)ate : ", 0
+str_setupdt_time:	.db	"(T)ime : ", 0
+str_setupdt_alarm:	.db	"Alar(m)     : ", 0
+str_setupdt_adate:	.db	"D(a)te : ", 0
+str_setupdt_atime:	.db	"T(i)me : ", 0
+str_setupsrl_header:	.db	"Serial", 0
+str_setupsrl_mport:	.db	"(M)ain port: ", 0
+str_setupsrl_baud:	.db	"(B)aud rate: ", 0
+str_setuppwr_header:	.db	"Power Status", 0
+str_setuppwr_cstatus:	.db	"Charging Status: ", 0
+str_setuppwr_charging:	.db	"Charging", 0
+str_setuppwr_charged:	.db	"Charged ", 0
+
+str_enabled:		.db	"Enabled ", 0
+str_disabled:		.db	"Disabled", 0
+str_fail:		.db	"Fail", 0
+str_warn:		.db	"Warning", 0
+str_okay:		.db	"OK", 0
+str_skip:		.db	"Skip", 0
+str_present:		.db	"Present", 0
+str_na:			.db	"N/A", 0
+str_cfg_mem:		.db	"Config memory: ", 0
+str_tst_mem:		.db	"Testing memory bank [", 0
+str_memory_card:	.db	"Memory Card", 0
+str_read_only:		.db	"Read Only", 0
+str_rtc:		.db	"RTC init: ", 0
+str_timeout:		.db	"Timeout: ", 0
+;str_keyb:		.db	"Keyboard init: ", 0
+str_backup:		.db	"Backup ", 0
+str_battery:		.db	"Battery: ", 0
+
+str_init_header:	.db	" PAULMON ", 0
+str_init_select:	.db	"Select console:", 0
+str_init_oyster:	.db	"       O - Oyster Terminal", 0
+str_init_serial:	.db	"       S - Serial", 0
+
