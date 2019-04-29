@@ -137,6 +137,7 @@
 .equ	sys_props_save, 0x6D							; System config
 										;	0 - key_click
 										; 	1 - Main serial port status
+										;	7 - Set when the processor is idled
 .equ	sys_cfg_chksum_inv, 0x6E						; Checksum (inverted) of the system configuration
 .equ	sys_cfg_checksum, 0x6F							; Checksum of the system configuration
 
@@ -2056,6 +2057,18 @@ power_button_event:
 	mov	b, #5
 	lcall	piezo_beep							; Beep tone
 
+	mov	a, sys_props_save						; Check whether the system has just 'woken up'
+	jb 	acc.7, power_button_event_finish:
+
+	lcall	serial_mainport_disable						; Shutdown serial
+	lcall	lcd_off								; Shutdown lcd
+
+	orl	sys_props_save, #0x80						; Set the processor idle flag
+	orl	pcon, #0x01							; Idle the processor
+
+	lcall	system_config_restore_properties				; Restore system configuration
+power_button_event_clear flag:
+	anl	sys_props_save, #0x7f						; Clear the 'idle' flag
 	reti
 
 
@@ -2281,7 +2294,7 @@ system_config_save_finish:
 ; ##########################################################################
 system_config_restore:
 	lcall	system_config_check						; See if system config data exists (Warm boot)
-	jc	system_config_restore_do
+	jc	system_config_restore_properties
 
 system_config_restore_from_rtc:							; Try restoring data from RTC memory
 	mov	r1, #sys_config_start						; Register pointer
@@ -2302,13 +2315,17 @@ system_config_restore_from_rtc_finish:
 	lcall	i2c_stop
 
 	lcall	system_config_check						; Has this provided a valid system config (Cold boot)
-	jc	system_config_restore_do					; Otherwise set system defaults
+	jc	system_config_restore_properties				; Otherwise set system defaults
 
 	mov	current_year, #0x00						; Equivalent to y2k
 	lcall	serial_baudsave_set_default					; Default baud rate
 	mov	lcd_props_save, #0x14						; LCD properties defaults, backlight on, contrast=4
 	mov	sys_props_save, #0x03						; Key click enabled, Serial port enabled
-system_config_restore_do:
+; # system_config_restore_properties
+; #
+; # Applies current system config, also checks current_year is correct
+; ##########################################################################
+system_config_restore_properties:
 	mov	a, sys_props_save
 	mov	c, acc.0
 	mov	key_click, c							; Restore key click
@@ -2317,13 +2334,13 @@ system_config_restore_do:
 	lcall	rtc_get_datetime						; Need to check that current_year is still valid
 	mov	a, r5
 	lcall	rtc_calc_year							; Calculate the year based on RTC data and the stored year
-	cjne	a, current_year, system_config_restore_do_year_update		; Check whether stored and calculated years are the same
-	sjmp	system_config_restore_do_finish					; If they are, just continue
-system_config_restore_do_year_update:
+	cjne	a, current_year, system_config_restore_properties_year_update	; Check whether stored and calculated years are the same
+	sjmp	system_config_restore_properties_finish				; If they are, just continue
+system_config_restore_properties_year_update:
 	mov	current_year, a							; Save updated year
 	lcall	system_config_save						; Save config (with updated year) back to RTC ram
 
-system_config_restore_do_finish:
+system_config_restore_properties_finish:
 	ret
 
 
