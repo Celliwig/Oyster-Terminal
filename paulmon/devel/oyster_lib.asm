@@ -3846,6 +3846,7 @@ setup_serial_loop_print_mpstate:
 setup_serial_loop_baudrate_identify:
 	inc	tmp_var
 	mov	a, tmp_var							; Get current offset
+	jb	acc.3, setup_serial_loop_baudrate_identify_fail			; Check whether we've failed to match
 	movc	a, @a+dptr
 	subb	a, baud_save+3							; Subtract current baud rate to test if we have a match
 	jnz	setup_serial_loop_baudrate_identify
@@ -3856,6 +3857,10 @@ setup_serial_loop_baudrate_identify:
 	add	a, dpl								; Add calculated offset to pointer
 	mov	dpl, a
 	lcall	lcd_pstr
+	sjmp	setup_serial_keyboard_scan
+setup_serial_loop_baudrate_identify_fail:
+	mov	a, baud_save+3							; If we failed to match, print the reload instead
+	lcall	phex
 
 setup_serial_keyboard_scan:
 	lcall	keyboard_scan
@@ -3874,7 +3879,7 @@ setup_serial_keyboard_scan_b_set_baud:
 	mov	dptr, #baud_rate_table
 	movc	a, @a+dptr							; Get new baud rate
 	lcall	serial_baudsave_set_reload					; Set new baud rate
-	sjmp	setup_serial_loop
+	ajmp	setup_serial_loop
 setup_serial_keyboard_scan_m:
 	cjne	a, #0x12, setup_serial_keyboard_scan_cancel
 	mov	a, sys_props_save						; Get saved bits
