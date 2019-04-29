@@ -9,7 +9,7 @@
 ; ##########################################################################
 ;.equ	paulmon2, 0x0000					; location where paulmon2
 .equ	paulmon2, 0x8000					; location where paulmon2
-.equ	oysterlib, paulmon2+0x1000				; location of oysterlib
+.equ	oysterlib, paulmon2+0x1080				; location of oysterlib
 .equ	locat, 0x4000+paulmon2					; location for the library/commands
 
 ; PaulMON functions
@@ -165,12 +165,20 @@
 .equ	mem_page_psen, 0x58					; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59					; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A					; Used to select the correct keymap
-.equ	tmp_var, 0x67
+.equ	tmp_var, 0x60
+.equ	current_year, 0x67					; The current year as an offset from 2000 (needed as the RTC only stores 2 bits for the year)
 ; 0x68-0x6B used by baud_save
 .equ	lcd_props_save, 0x6C					; Used to retain the backlight/contrast settings when the screen is off
 .equ	sys_props_save, 0x6D					; System config
 								;	0 - key_click
 								;	1 - Main serial port status
+.equ	sys_cfg_chksum_inv, 0x6E				; Checksum (inverted) of the system configuration
+.equ	sys_cfg_checksum, 0x6F					; Checksum of the system configuration
+
+; Definitions for the system config save/restore rountines
+; So there is only one place to update
+.equ	sys_config_start, current_year
+.equ	sys_config_end, sys_props_save
 
 ; Bit RAM definitions
 ; ##########################################################################

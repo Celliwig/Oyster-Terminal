@@ -83,7 +83,7 @@
 ;	                OsyterLib			  ;
 ;							  ;
 ;---------------------------------------------------------;
-.equ	oysterlib_locat, 0x1000+base
+.equ	oysterlib_locat, 0x1080+base
 .equ	oysterlib_cout, 0x00+oysterlib_locat
 .equ	oysterlib_newline, 0x02+oysterlib_locat
 .equ	oysterlib_cin, 0x04+oysterlib_locat
