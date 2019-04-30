@@ -124,16 +124,27 @@
 .equ	lcd_start_position, 0x52						; Start position for LCD operations (b0-b4 - column, b5-7 - row)
 .equ	lcd_subscreen_row, 0x53							; Current subscreen row
 .equ	lcd_subscreen_column, 0x54						; Current subscreen column
-.equ	lcd_properties, 0x55							; Current contrast/backlight value
+.equ	lcd_properties, 0x55							; Current contrast/backlight value (represents latch value)
+										;	0-3 - Contrast
+										;	4 - Backlight
+										;	5 - Flash programming voltage enable
 .equ	keycode_raw, 0x56							; Raw keycode, read from hardware
 .equ	keycode_ascii, 0x57							; Processed raw keycode to ASCII keymap
 .equ	mem_page_psen, 0x58							; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59							; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A							; Used to select the correct keymap
+.equ	tmp_sd0, 0x5B								; sdelay temp
+.equ	tmp_sd1, 0x5C								; sdelay temp
+.equ	tmp_sd2, 0x5D								; sdelay temp
 .equ	tmp_var, 0x60
 .equ	current_year, 0x67							; The current year as an offset from 2000 (needed as the RTC only stores 2 bits for the year)
 ; 0x68-0x6B used by baud_save
 .equ	lcd_props_save, 0x6C							; Used to retain the backlight/contrast settings when the screen is off
+										;	0-3 - Contrast
+										;	4 - Backlight
+										;	5 - Flash programming voltage enable
+										;	6 - Not used (not latched)
+										;	7 - LCD enabled flag (not latched)
 .equ	sys_props_save, 0x6D							; System config
 										;	0 - key_click
 										; 	1 - Main serial port status
@@ -329,9 +340,9 @@ power_lib:
 	ajmp	power_battery_ramcard_check_status_fail				; 0x06
 ; misc library functions
 misc_lib:
-	ajmp	piezo_beep							; 0x00
-	ajmp	piezo_pwm_sound							; 0x02
-	ajmp	sdelay								; 0x04
+	ljmp	piezo_beep							; 0x00
+	ljmp	piezo_pwm_sound							; 0x03
+	ljmp	sdelay								; 0x06
 
 
 ; ###############################################################################################################
@@ -1356,6 +1367,8 @@ lcd_get_data:
 ; # Cycle through the subscreens turning them off
 ; ##########################################################################
 lcd_off:
+	anl	lcd_props_save, #0x7f
+lcd_off_dont_flag:
 	acall	lcd_set_properties_off						; Turn off backlight, et al.
 
 	setb	p1.4								; Enable clock
@@ -1371,18 +1384,36 @@ lcd_off_subscreen:
 	ret
 
 
+; # lcd_on
+; #
+; # Cycle through subscreens turning them on
+; ##########################################################################
+lcd_on:
+	orl	lcd_props_save, #0x80						; Set LCD enabled flag
+	acall	lcd_set_properties_defaults					; Set contrast, turn on backlight if it's configured
+
+	setb	p1.4								; Enable clock
+	mov	dph, #0x80							; Select LCD (command register)
+lcd_on_subscreen:
+	mov	a, #0x3f							; LCD command 'Turn on'
+	lcall	lcd_send_data							; Send command
+	mov	a, dph
+	add	a, #0x10							; Select next subscreen
+	mov	dph, a
+	cjne	a, #0xb0, lcd_on_subscreen					; Enable next subscreen
+	clr	p1.4								; Disable clock
+	ret
+
 ; # lcd_init
 ; #
 ; # Initialise the LCD, clear the memory
 ; ##########################################################################
 lcd_init:
-	acall	lcd_set_properties_defaults
+	acall	lcd_on								; Enable lcd
 
 	setb	p1.4								; Enable clock
 	mov	dph, #0x80							; Select LCD (command register)
 lcd_init_subscreen:
-	mov	a, #0x3f							; LCD command 'Turn on'
-	lcall	lcd_send_data							; Send command
 	mov	a, #0xc0							; LCD command 'Display start line' #0
 	lcall	lcd_send_data							; Send command
 	mov	a, dph
@@ -1761,8 +1792,9 @@ lcd_set_properties_defaults:
 ; #   A - LCD properties value
 ; ##########################################################################
 lcd_set_properties:
-	mov	lcd_props_save, a						; Save config
-	anl	lcd_props_save, #0x1f						; Make sure we only save the values we are interested in
+	anl	lcd_props_save, #0xe0						; Clear everything but the top 3 msbs
+	anl	a, #0x1f							; Make sure we don't accidently overwrite something
+	orl	lcd_props_save, a						; Save new value
 lcd_set_properties_do:
 	mov	lcd_properties, a
 	setb	p1.4
@@ -1888,9 +1920,10 @@ serial_mainport_disable:
 	anl	sys_props_save, #0xfd						; Clear flag
 serial_mainport_set_state:
 	mov	a, sys_props_save
-	mov	c, acc.1
+	jb	acc.1, serial_mainport_set_state_enabled
 	clr	sfr_p4_80c562.7
-	jnc	serial_mainport_set_state_finish
+	sjmp	serial_mainport_set_state_finish
+serial_mainport_set_state_enabled:
 	setb	sfr_p4_80c562.7
 serial_mainport_set_state_finish:
 	ret
@@ -2053,22 +2086,42 @@ power_battery_ramcard_check_status_fail_finish:
 power_button_event:
 	clr	IE0								; Clear just in case
 
+	push	acc
+	mov	a, sys_props_save						; Check whether the system has just 'woken up'
+	jb 	acc.7, power_button_event_clear_flag
+
+	push	b
+	push	dph
+	push	dpl
+
 	mov	a, #10								; 1445 Hz
 	mov	b, #5
 	lcall	piezo_beep							; Beep tone
 
-	mov	a, sys_props_save						; Check whether the system has just 'woken up'
-	jb 	acc.7, power_button_event_finish:
-
-	lcall	serial_mainport_disable						; Shutdown serial
-	lcall	lcd_off								; Shutdown lcd
+;	lcall	serial_mainport_disable						; Shutdown serial
+	lcall	lcd_off_dont_flag						; Shutdown lcd
 
 	orl	sys_props_save, #0x80						; Set the processor idle flag
+	setb	PX0								; Increase the priorty of external interrupt 0 (so we can interrupt again)
 	orl	pcon, #0x01							; Idle the processor
+	clr	PX0								; Reset the priority of external interrupt 0
 
-	lcall	system_config_restore_properties				; Restore system configuration
-power_button_event_clear flag:
+	mov	a, #10								; 1445 Hz
+	mov	b, #5
+	lcall	piezo_beep							; Beep tone
+
+	mov	a, lcd_props_save						; Check whether the LCD was previously on
+	jnb	acc.7, power_button_event_restore
+	lcall	lcd_on
+power_button_event_restore:
+;	lcall	system_config_restore_properties				; Restore system configuration
+
+	pop	dpl
+	pop	dph
+	pop	b
+power_button_event_clear_flag:
 	anl	sys_props_save, #0x7f						; Clear the 'idle' flag
+	pop	acc
 	reti
 
 
@@ -2153,16 +2206,16 @@ piezo_pwm_table:
 ; #   A - x50 milliseconds to delay
 ; ##########################################################################
 sdelay:
-	mov	r2, a
+	mov	tmp_sd2, a
 sdelay_50ms:									; 50ms delay
-	mov	r0, #120
-	mov	r1, #128
+	mov	tmp_sd0, #120
+	mov	tmp_sd1, #128
 sdelay1:
-	djnz	r0, sdelay1
+	djnz	tmp_sd0, sdelay1
 sdelay2:
-	mov	r0, #120
-	djnz	r1, sdelay1
-	djnz	r2, sdelay_50ms
+	mov	tmp_sd0, #120
+	djnz	tmp_sd1, sdelay1
+	djnz	tmp_sd2, sdelay_50ms
 	ret
 
 ; # terminal_esc_cursor_X
@@ -2327,8 +2380,10 @@ system_config_restore_from_rtc_finish:
 ; ##########################################################################
 system_config_restore_properties:
 	mov	a, sys_props_save
-	mov	c, acc.0
-	mov	key_click, c							; Restore key click
+	clr	key_click							; Disable key click
+	jnb	acc.0, system_config_restore_properties_serial			; Check whether key click is enable in the config
+	setb	key_click							; Restore key click
+system_config_restore_properties_serial:
 	lcall	serial_mainport_set_state					; Restore main serial port state
 
 	lcall	rtc_get_datetime						; Need to check that current_year is still valid
@@ -3161,6 +3216,7 @@ setup_screenkey:
 	lcall	lcd_clear_screen
 	mov	tmp_var, #0
 
+setup_screenkey_loop:
 	setb	lcd_glyph_doublewidth
 	setb	lcd_glyph_doubleheight
 	setb	lcd_glyph_invert
