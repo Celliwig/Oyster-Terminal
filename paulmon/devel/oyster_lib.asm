@@ -3988,7 +3988,7 @@ setup_power_loop:
 	clr	lcd_glyph_doubleheight
 	clr	lcd_glyph_invert
 
-	mov	lcd_start_position, #0x64					; 4th row, 5th column
+	mov	lcd_start_position, #0x66					; 4th row, 7th column
 	mov	dptr, #str_setuppwr_cstatus
 	lcall	lcd_pstr
 	lcall	power_battery_main_check_charging
@@ -3998,7 +3998,7 @@ setup_power_loop:
 setup_power_loop_print_cstatus:
 	lcall	lcd_pstr
 
-	mov	lcd_start_position, #0x85					; 4th row, 6th column
+	mov	lcd_start_position, #0x87					; 5th row, 8th column
 	mov	dptr, #str_backup
 	lcall	lcd_pstr
 	mov	dptr, #str_battery
@@ -4012,9 +4012,11 @@ setup_power_loop_print_bbattery:
 
 	lcall	memory_ramcard_present						; Check if ram card is present
 	jnc	setup_power_keyboard_scan
-	mov	lcd_start_position, #0x81					; 4th row, 2nd column
+	mov	lcd_start_position, #0xa2					; 6th row, 2nd column
 	mov	dptr, #str_memory_card
 	lcall	lcd_pstr
+	mov	a, #' '
+	lcall	oyster_cout
 	mov	dptr, #str_battery
 	lcall	lcd_pstr
 	lcall	power_battery_ramcard_check_status_warn
