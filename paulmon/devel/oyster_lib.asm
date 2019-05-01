@@ -1026,7 +1026,7 @@ rtc_get_datetime:
 rtc_get_datetime_main:
 	mov	b, #rtc_addr1
 	acall	i2c_read_device_register					; Get value
-	jc	rtc_get_datetime_finish
+	jc	rtc_get_datetime_error
 	acall	i2c_master_read_ack
 	push	acc								; Store seconds for later (r0 used by i2c_*)
 	acall	i2c_read_byte							; Get value
@@ -1050,10 +1050,12 @@ rtc_get_datetime_main:
 	anl	a, #1fh								; Lose weekday data
 	mov	r4, a								; Store month
 	clr	c
-rtc_get_datetime_finish:
 	acall	i2c_stop_clock_stretch_check
 	pop	acc
 	mov	r0, a
+	ret
+rtc_get_datetime_error:
+	acall	i2c_stop_clock_stretch_check
 	ret
 
 
@@ -1911,21 +1913,18 @@ print_bcd_digit:
 ; ##########################################################################
 serial_mainport_enable:
 	orl	sys_props_save, #0x02						; Set flag
-	sjmp	serial_mainport_set_state
+	setb	sfr_p4_80c562.7
+	ret
+
+
 ; # serial_mainport_disable
 ; #
 ; # Disables the main serial port (P1) receivers
 ; ##########################################################################
 serial_mainport_disable:
 	anl	sys_props_save, #0xfd						; Clear flag
-serial_mainport_set_state:
-	mov	a, sys_props_save
-	jb	acc.1, serial_mainport_set_state_enabled
+serial_mainport_disable_dont_flag:
 	clr	sfr_p4_80c562.7
-	sjmp	serial_mainport_set_state_finish
-serial_mainport_set_state_enabled:
-	setb	sfr_p4_80c562.7
-serial_mainport_set_state_finish:
 	ret
 
 
@@ -2098,7 +2097,7 @@ power_button_event:
 	mov	b, #5
 	lcall	piezo_beep							; Beep tone
 
-;	lcall	serial_mainport_disable						; Shutdown serial
+	lcall	serial_mainport_disable_dont_flag				; Shutdown serial
 	lcall	lcd_off_dont_flag						; Shutdown lcd
 
 	orl	sys_props_save, #0x80						; Set the processor idle flag
@@ -2111,11 +2110,14 @@ power_button_event:
 	lcall	piezo_beep							; Beep tone
 
 	mov	a, lcd_props_save						; Check whether the LCD was previously on
-	jnb	acc.7, power_button_event_restore
+	jnb	acc.7, power_button_event_serial
 	lcall	lcd_on
-power_button_event_restore:
-;	lcall	system_config_restore_properties				; Restore system configuration
+power_button_event_serial:
+	mov	a, sys_props_save						; Check whether the main serial port was enabled
+	jnb	acc.1, power_button_event_stack
+	lcall	serial_mainport_enable
 
+power_button_event_stack:
 	pop	dpl
 	pop	dph
 	pop	b
@@ -2384,8 +2386,11 @@ system_config_restore_properties:
 	jnb	acc.0, system_config_restore_properties_serial			; Check whether key click is enable in the config
 	setb	key_click							; Restore key click
 system_config_restore_properties_serial:
-	lcall	serial_mainport_set_state					; Restore main serial port state
+	lcall	serial_mainport_disable_dont_flag
+	jnb	acc.1, system_config_restore_properties_year
+	lcall	serial_mainport_enable						; Restore main serial port state
 
+system_config_restore_properties_year:
 	lcall	rtc_get_datetime						; Need to check that current_year is still valid
 	mov	a, r5
 	lcall	rtc_calc_year							; Calculate the year based on RTC data and the stored year
@@ -3956,13 +3961,11 @@ setup_serial_keyboard_scan_b_set_baud:
 setup_serial_keyboard_scan_m:
 	cjne	a, #0x12, setup_serial_keyboard_scan_cancel
 	mov	a, sys_props_save						; Get saved bits
-	mov	c, acc.1							; Get the bit we're interested in
-	cpl	c								; Invert it
-	anl	sys_props_save, #0xfd						; Clear the current setting
-	jnc	setup_serial_keyboard_scan_m_set_mpstate
-	orl	sys_props_save, #0x02						; Set bit
-setup_serial_keyboard_scan_m_set_mpstate:
-	lcall	serial_mainport_set_state
+	jnb	acc.1, setup_serial_keyboard_scan_m_enable			; This will toggle the setting
+	lcall	serial_mainport_disable
+	ljmp	setup_serial_loop
+setup_serial_keyboard_scan_m_enable:
+	lcall	serial_mainport_enable
 	ljmp	setup_serial_loop
 setup_serial_keyboard_scan_cancel:
 	cjne	a, #0x07, setup_serial_keyboard_scan_other
