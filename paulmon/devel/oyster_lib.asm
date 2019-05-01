@@ -136,6 +136,7 @@
 .equ	tmp_sd0, 0x5B								; sdelay temp
 .equ	tmp_sd1, 0x5C								; sdelay temp
 .equ	tmp_sd2, 0x5D								; sdelay temp
+.equ	i2c_tmp, 0x5E								; temporary storage for i2c comms.
 .equ	tmp_var, 0x60
 .equ	current_year, 0x67							; The current year as an offset from 2000 (needed as the RTC only stores 2 bits for the year)
 ; 0x68-0x6B used by baud_save
@@ -694,7 +695,7 @@ i2c_stop_clock_stretch_check:
 ; # Set stop condition on i2c bus
 ; ##########################################################################
 i2c_stop:
-	mov	r0, #0								; Setup loop count (255)
+	mov	i2c_tmp, #0							; Setup loop count (255)
 i2c_stop_loop:
 	clr	i2c_scl								; Clear SCL
 	clr	i2c_sda								; Clear SDA
@@ -703,7 +704,7 @@ i2c_stop_loop:
 	setb	i2c_scl								; Set SCL
 	setb	i2c_sda								; Set SDA
 	jb	i2c_sda, i2c_stop_exit						; Has SDA been released?
-	djnz	r0, i2c_stop_loop						; It hasn't, so loop
+	djnz	i2c_tmp, i2c_stop_loop						; It hasn't, so loop
 i2c_stop_exit:
 	ret
 
@@ -714,7 +715,7 @@ i2c_stop_exit:
 ; # A - byte to write out
 ; ##########################################################################
 i2c_write_byte:
-	mov	r0, #8								; Move 8 into r0 (number of bits)
+	mov	i2c_tmp, #8							; Move 8 into i2c_tmp (number of bits)
 	rlc	a								; Rotate A into Carry
 	mov	i2c_sda, c							; Set i2c bit data from Carry
 i2c_write_byte_scl_wait:
@@ -728,7 +729,7 @@ i2c_write_byte_rest:
 	rlc	a								; Get next bit
 	nop									; NOP - wait for i2c data to 'settle'
 	clr	i2c_scl								; Clear SCL to ready for next bit
-	djnz	r0, i2c_write_byte_rest_loop					; Loop through byte
+	djnz	i2c_tmp, i2c_write_byte_rest_loop				; Loop through byte
 	setb	i2c_sda								; Release i2c data line
 	ret
 
@@ -738,10 +739,10 @@ i2c_write_byte_rest:
 ; # Check for ACK/NACK, set Carry if NACKed
 ; ##########################################################################
 i2c_ack_check:
-	mov	r0, #0								; Setup loop count (255)
+	mov	i2c_tmp, #0							; Setup loop count (255)
 i2c_ack_check_loop:
 	jnb	i2c_sda, i2c_ack_check_acked					; Check to see if byte ACKed
-	djnz	r0, i2c_ack_check_loop						; Keep checking bit
+	djnz	i2c_tmp, i2c_ack_check_loop					; Keep checking bit
 	setb	c								; Indicate NACKed
 	setb	i2c_scl
 	ret
@@ -763,7 +764,7 @@ i2c_ack_check_acked:
 i2c_write_byte_to_addr:
 	push	acc
 	acall	i2c_start
-	mov	a,b
+	mov	a, b
 	acall	i2c_write_byte
 	acall	i2c_ack_check
 	pop	acc
@@ -786,7 +787,7 @@ i2c_write_byte_return:
 ; # A - contains byte read
 ; ##########################################################################
 i2c_read_byte:
-	mov	r0, #8								; Move 8 into r0 (num bits)
+	mov	i2c_tmp, #8							; Move 8 into i2c_tmp (num bits)
 	clr	a								; Clear A, will store data here
 i2c_read_byte_loop:
 	setb	i2c_scl								; Set SCL to get next bit
@@ -794,7 +795,7 @@ i2c_read_byte_loop:
 	mov	c, i2c_sda							; Copy i2c bit data into Carry
 	clr	i2c_scl								; Clear SCL to ready for next bit
 	rlc	a								; Rotate Carry in to A to build byte
-	djnz	r0, i2c_read_byte_loop						; Loop to build byte
+	djnz	i2c_tmp, i2c_read_byte_loop					; Loop to build byte
 	ret
 
 
