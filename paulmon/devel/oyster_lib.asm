@@ -991,6 +991,22 @@ rtc_alarm_init_finish:
 	ret
 
 
+; # rtc_alarm_clear_active
+; #
+; # Clears an active clock alarm
+; ##########################################################################
+rtc_alarm_clear_active:
+	mov	b, #rtc_addr1
+	acall	rtc_get_config							; Get the current alarm status
+	jnb	acc.1, rtc_alarm_clear_active_finish
+	anl	a, #0xfd							; Clear alarm flag
+	mov	b, #rtc_addr1
+	acall	rtc_set_config
+	acall	rtc_alarm_init							; Clear alarm enable flag
+rtc_alarm_clear_active_finish:
+	ret
+
+
 ; # rtc_stop
 ; #
 ; # Stops the RTC ticking
@@ -2111,10 +2127,14 @@ power_button_event:
 	lcall	serial_mainport_disable_dont_flag				; Shutdown serial
 	lcall	lcd_off_dont_flag						; Shutdown lcd
 
+	lcall	rtc_alarm_clear_active						; Clear alarm interrupt
+
 	orl	sys_props_save, #0x80						; Set the processor idle flag
 	setb	PX0								; Increase the priorty of external interrupt 0 (so we can interrupt again)
 	orl	pcon, #0x01							; Idle the processor
 	clr	PX0								; Reset the priority of external interrupt 0
+
+	lcall	rtc_alarm_clear_active						; Clear alarm interrupt
 
 	mov	a, #10								; 1445 Hz
 	mov	b, #5
