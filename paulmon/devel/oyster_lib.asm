@@ -959,10 +959,9 @@ rtc_init:
 	acall	rtc_set_config							; Config RTC2
 	jc	rtc_init_finish							; Exit on error
 
-	mov	a, #0x30							; Timer function: no timer, Alarm/Timer flag: no interrupt, no timer alarm, Clock alarm: dated alarm
-	mov	b, #rtc_addr1
-	acall	rtc_set_alarm_config						; Config RTC1 alarm
-	jc	rtc_init_finish							; Exit on error
+	lcall	rtc_alarm_init							; Initialise the alarm register
+	jc	rtc_init_finish
+
 ; # rtc_start
 ; #
 ; # Used in conjunction with rtc_stop when the date/time needs to be updated
@@ -975,6 +974,20 @@ rtc_start:
 
 	clr	c
 rtc_init_finish:
+	ret
+
+
+; # rtc_alarm_init
+; #
+; # Reset the RTC's alarm config
+; ##########################################################################
+rtc_alarm_init:
+	mov	a, #0x30							; Timer function: no timer, Alarm/Timer flag: no interrupt, no timer alarm, Clock alarm: dated alarm
+	mov	b, #rtc_addr1
+	acall	rtc_set_alarm_config						; Config RTC1 alarm
+	jc	rtc_alarm_init_finish						; Exit on error
+	clr	c
+rtc_alarm_init_finish:
 	ret
 
 
@@ -1029,7 +1042,7 @@ rtc_get_datetime_main:
 	acall	i2c_read_device_register					; Get value
 	jc	rtc_get_datetime_error
 	acall	i2c_master_read_ack
-	push	acc								; Store seconds for later (r0 used by i2c_*)
+	mov	r0, a								; Store seconds
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
 	mov	r1, a								; Store minutes
@@ -1051,10 +1064,6 @@ rtc_get_datetime_main:
 	anl	a, #1fh								; Lose weekday data
 	mov	r4, a								; Store month
 	clr	c
-	acall	i2c_stop_clock_stretch_check
-	pop	acc
-	mov	r0, a
-	ret
 rtc_get_datetime_error:
 	acall	i2c_stop_clock_stretch_check
 	ret
@@ -1075,8 +1084,6 @@ rtc_get_datetime_error:
 ; #   Carry - error
 ; ##########################################################################
 rtc_set_alarm_datetime:
-	mov	a, r0								; Save for later (r0 used by i2c_*)
-	push	acc
 	mov	a, #0x09							; Alarm hundreths of a second
 	sjmp	rtc_set_datetime_main
 ; # rtc_set_datetime
@@ -1094,8 +1101,6 @@ rtc_set_alarm_datetime:
 ; #   Carry - error
 ; ##########################################################################
 rtc_set_datetime:
-	mov	a, r0								; Save for later (r0 used by i2c_*)
-	push	acc
 	mov	a, #1								; Hundreths of a second
 rtc_set_datetime_main:
 	mov	b, #rtc_addr1
@@ -1104,7 +1109,7 @@ rtc_set_datetime_main:
 	mov	a, #0								; Just zero hundreths of a second
 	acall	i2c_write_byte_with_ack_check					; Load hundreths of a second
 	jc	rtc_set_datetime_finish
-	pop	acc
+	mov	a, r0
 	acall	i2c_write_byte_with_ack_check					; Load seconds
 	jc	rtc_set_datetime_finish
 	mov	a, r1
@@ -1183,7 +1188,7 @@ keyboard_scan:
 keyboard_scan_column:
 	movx	@dptr, a							; Load column selection
 	nop
-	nop										; Wait for signals to propagate
+	nop									; Wait for signals to propagate
 	jnb	p1.5, keyboard_read_key						; Has the row select irq been set
 	rr	a								; Next column
 	djnz	r0, keyboard_scan_column
@@ -1274,8 +1279,9 @@ keyboard_read_key_make_keycode_check_mode_inc:
 	mov	keymap_offset, a
 	cjne	a, #0x61, keyboard_read_key_make_keycode_check_mode_inc_cmp	; Check if we have cycled through all keymaps
 keyboard_read_key_make_keycode_check_mode_inc_cmp:
-	jc	keyboard_reset
+	jc	keyboard_read_key_make_keycode_check_mode_inc_cmp_reset
 	mov	keymap_offset, #0x00						; Select default keymap
+keyboard_read_key_make_keycode_check_mode_inc_cmp_reset:
 	ajmp	keyboard_reset
 keyboard_read_key_make_keycode_check_mode_lock:
 	cjne	a, #0x2C, keyboard_read_key_make_keycode_ascii			; Check for 'DEL' key
@@ -2091,8 +2097,12 @@ power_button_event:
 	jb 	acc.7, power_button_event_clear_flag
 
 	push	b
+	mov	stack_carry_bit, c
+	push	stack_carry
 	push	dph
 	push	dpl
+	push	psw
+	orl	psw, #0b00011000						; Select register bank 3
 
 	mov	a, #10								; 1445 Hz
 	mov	b, #5
@@ -2110,17 +2120,33 @@ power_button_event:
 	mov	b, #5
 	lcall	piezo_beep							; Beep tone
 
+	clr	keyboard_key_down
+	lcall	keyboard_scan							; Check for reset or defaults reload
+	jnb	keyboard_key_down, power_button_event_restore_lcd
+	mov	a, keycode_raw
+power_button_event_keycheck_cancel:						; Reboot
+	cjne	a, #0x07, power_button_event_keycheck_delete
+	ljmp	paulmon2
+power_button_event_keycheck_delete:						; Reset system setup to defaults, then reboot
+	cjne	a, #0x2c, power_button_event_restore_lcd
+	lcall	system_config_restore_defaults
+	ljmp	paulmon2
+
+power_button_event_restore_lcd:
 	mov	a, lcd_props_save						; Check whether the LCD was previously on
-	jnb	acc.7, power_button_event_serial
+	jnb	acc.7, power_button_event_restore_serial
 	lcall	lcd_on
-power_button_event_serial:
+power_button_event_restore_serial:
 	mov	a, sys_props_save						; Check whether the main serial port was enabled
 	jnb	acc.1, power_button_event_stack
 	lcall	serial_mainport_enable
 
 power_button_event_stack:
+	pop	psw
 	pop	dpl
 	pop	dph
+	pop	stack_carry
+	mov	c, stack_carry_bit
 	pop	b
 power_button_event_clear_flag:
 	anl	sys_props_save, #0x7f						; Clear the 'idle' flag
@@ -2373,6 +2399,11 @@ system_config_restore_from_rtc_finish:
 	lcall	system_config_check						; Has this provided a valid system config (Cold boot)
 	jc	system_config_restore_properties				; Otherwise set system defaults
 
+; # system_config_restore_defaults
+; #
+; # Set default values for the system configuration
+; ##########################################################################
+system_config_restore_defaults:
 	mov	current_year, #0x00						; Equivalent to y2k
 	lcall	serial_baudsave_set_default					; Default baud rate
 	mov	lcd_props_save, #0x14						; LCD properties defaults, backlight on, contrast=4
