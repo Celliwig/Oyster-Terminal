@@ -161,14 +161,14 @@
  U36 74HC163 (Presettable synchronous 4-bit binary counter - Clock Generation )
 ------------------------------------------------------------------------------
 
- 1 - !MR -					16 - Vcc
- 2 - CP -					15 - TC - 
- 3 - D0 -					14 - Q0 - 
- 4 - D1 -					13 - Q1 - 
- 5 - D2 -					12 - Q2 - J3 (8 LCD Enable)
- 6 - D3 -					11 - Q3 - 
- 7 - CEP -					10 - CET - U34 (20 P1.4)
- 8 - Gnd					 9 - !PE - 
+ 1 - !MR - Vcc					16 - Vcc
+ 2 - CP - U33 (13)				15 - TC - 
+ 3 - D0 - Gnd					14 - Q0 - 
+ 4 - D1 - Vcc					13 - Q1 - 
+ 5 - D2 - Gnd					12 - Q2 - J3 (8 LCD Enable)
+ 6 - D3 - Gnd					11 - Q3 - 
+ 7 - CEP - U34 (46 - A15)			10 - CET - U34 (20 P1.4)
+ 8 - Gnd					 9 - !PE - U31 (12)
 
 
  U37 74HC14 (Hex inverting Schmitt trigger)
