@@ -86,8 +86,8 @@
 .equ	oysterlib_base,  0x1000+base
 .equ	oysterlib_locat, 0x80+oysterlib_base
 .equ	oysterlib_cout, 0x00+oysterlib_locat
-.equ	oysterlib_newline, 0x02+oysterlib_locat
-.equ	oysterlib_cin, 0x04+oysterlib_locat
+.equ	oysterlib_newline, 0x03+oysterlib_locat
+.equ	oysterlib_cin, 0x06+oysterlib_locat
 .flag   use_oysterlib, 0x20.0
 
 ; To set the baud rate, use this formula or set to 0 for auto detection
