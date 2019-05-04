@@ -82,10 +82,11 @@
 ;	                OsyterLib			  ;
 ;							  ;
 ;---------------------------------------------------------;
-.equ	oysterlib_locat, 0x1000+base
+.equ	oysterlib_base,  0x1000+base
+.equ	oysterlib_locat, 0x80+oysterlib_base
 .equ	oysterlib_cout, 0x00+oysterlib_locat
-.equ	oysterlib_newline, 0x02+oysterlib_locat
-.equ	oysterlib_cin, 0x04+oysterlib_locat
+.equ	oysterlib_newline, 0x03+oysterlib_locat
+.equ	oysterlib_cin, 0x06+oysterlib_locat
 .flag   use_oysterlib, 0x20.0
 
 ; To set the baud rate, use this formula or set to 0 for auto detection
@@ -239,7 +240,7 @@
 ;		External interrupt 0
 ;
 ;***************************************************************
-	ljmp	vector+0x03			; ext int0 vector
+	ljmp	oysterlib_base+0x03		; ext int0 vector
 
 r6r7todptr:
 	mov	dpl, r6
@@ -252,7 +253,7 @@ r6r7todptr:
 ;		Timer0 overflow
 ;
 ;***************************************************************
-	ljmp	vector+0x0b			; timer0 vector
+	ljmp	oysterlib_base+0x0b		; timer0 vector
 
 dptrtor6r7:
 	mov	r6, dpl
@@ -265,7 +266,7 @@ dptrtor6r7:
 ;		External interrupt 1
 ;
 ;***************************************************************
-	ljmp	vector+0x13			; ext int1 vector
+	ljmp	oysterlib_base+0x13		; ext int1 vector
 
 dash:	mov	a, #'-'				; seems kinda trivial, but each time
 	ajmp	cout				; this appears in code, it takes 4
@@ -277,7 +278,7 @@ dash:	mov	a, #'-'				; seems kinda trivial, but each time
 ;		Timer1 overflow
 ;
 ;***************************************************************
-	ljmp	vector+0x1b			; timer1 vector
+	ljmp	oysterlib_base+0x1b		; timer1 vector
 
 cout_sp:acall	cout
 	ajmp	space
@@ -289,7 +290,7 @@ cout_sp:acall	cout
 ;		Serial interrupt (TX/RX)
 ;
 ;***************************************************************
-	ljmp	vector+0x23			; UART vector
+	ljmp	oysterlib_base+0x23		; UART vector
 
 dash_sp:acall	dash
 	ajmp	space
@@ -301,7 +302,7 @@ dash_sp:acall	dash
 ;	I2C interrupt (not on 80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x2b			; timer2 vector (8052)
+	ljmp	oysterlib_base+0x2b		; timer2 vector (8052)
 
 .org	base+0x33
 ;***************************************************************
@@ -309,7 +310,7 @@ dash_sp:acall	dash
 ;	Timer2 capture 0 (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x33			; Timer2 capture 0
+	ljmp	oysterlib_base+0x33		; Timer2 capture 0
 
 .org	base+0x3b
 ;***************************************************************
@@ -317,7 +318,7 @@ dash_sp:acall	dash
 ;	Timer2 capture 1 (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x3b			; Timer2 capture 1
+	ljmp	oysterlib_base+0x3b		; Timer2 capture 1
 
 .org	base+0x43
 ;***************************************************************
@@ -325,7 +326,7 @@ dash_sp:acall	dash
 ;	Timer2 capture 2 (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x43			; Timer2 capture 2
+	ljmp	oysterlib_base+0x43		; Timer2 capture 2
 
 .org	base+0x4b
 ;***************************************************************
@@ -333,7 +334,7 @@ dash_sp:acall	dash
 ;	Timer2 capture 3 (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x4b			; Timer2 capture 3
+	ljmp	oysterlib_base+0x4b		; Timer2 capture 3
 
 .org	base+0x53
 ;***************************************************************
@@ -341,7 +342,7 @@ dash_sp:acall	dash
 ;	ADC completion (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x53			; ADC completion
+	ljmp	oysterlib_base+0x53		; ADC completion
 
 .org	base+0x5b
 ;***************************************************************
@@ -349,7 +350,7 @@ dash_sp:acall	dash
 ;	Timer2 compare 0 (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x5b			; Timer2 compare 0
+	ljmp	oysterlib_base+0x5b		; Timer2 compare 0
 
 .org	base+0x63
 ;***************************************************************
@@ -357,7 +358,7 @@ dash_sp:acall	dash
 ;	Timer2 compare 1 (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x63			; Timer2 compare 1
+	ljmp	oysterlib_base+0x63		; Timer2 compare 1
 
 .org	base+0x6b
 ;***************************************************************
@@ -365,7 +366,7 @@ dash_sp:acall	dash
 ;	Timer2 compare 2 (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x6b			; Timer2 compare 2
+	ljmp	oysterlib_base+0x6b		; Timer2 compare 2
 
 .org	base+0x73
 ;***************************************************************
@@ -373,7 +374,7 @@ dash_sp:acall	dash
 ;	Timer2 overflow (80C562)
 ;
 ;***************************************************************
-	ljmp	vector+0x73			; Timer2 overflow
+	ljmp	oysterlib_base+0x73		; Timer2 overflow
 
 
 ;---------------------------------------------------------;
