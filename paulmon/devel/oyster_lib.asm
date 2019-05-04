@@ -267,78 +267,81 @@
 
 ; console functions
 console_lib:
-	ajmp	oyster_cout							; 0x00
-	ajmp	oyster_newline							; 0x02
-	ajmp	oyster_cin							; 0x04
+	ljmp	oyster_cout							; 0x00
+	ljmp	oyster_newline							; 0x03
+	ljmp	oyster_cin							; 0x06
 ; math library functions
 math_lib:
-	ajmp	packed_bcd_to_hex						; 0x00
-	ajmp	hex_to_packed_bcd						; 0x02
+	ljmp	packed_bcd_to_hex						; 0x00
+	ljmp	hex_to_packed_bcd						; 0x03
+	ljmp	power_of_2							; 0x06
 ; memory library function
 memory_lib:
-	ajmp	memory_set_page_psen						; 0x00
-	ajmp	memory_set_page_rdwr						; 0x02
-	ajmp	memory_set_mode_psen						; 0x04
-	ajmp	memory_set_mode_rdwr						; 0x06
-	ajmp	memory_ramcard_present						; 0x08
-	ajmp	memory_ramcard_write_protect					; 0x0a
+	ljmp	memory_set_page_psen						; 0x00
+	ljmp	memory_set_page_rdwr						; 0x03
+	ljmp	memory_set_mode_psen						; 0x06
+	ljmp	memory_set_mode_rdwr						; 0x09
+	ljmp	memory_ramcard_present						; 0x0c
+	ljmp	memory_ramcard_write_protect					; 0x0f
 ; i2c library functions
 i2c_lib:
-	ajmp	i2c_start							; 0x00
-	ajmp	i2c_stop_clock_stretch_check					; 0x02
-	ajmp	i2c_stop							; 0x04
-	ajmp	i2c_write_byte							; 0x06
-	ajmp	i2c_ack_check							; 0x08
-	ajmp	i2c_write_byte_to_addr						; 0x0a
-	ajmp	i2c_write_byte_with_ack_check					; 0x0c
-	ajmp	i2c_read_byte							; 0x0e
-	ajmp	i2c_master_read_ack						; 0x10
-	ajmp	i2c_read_byte_from_addr						; 0x12
-	ajmp	i2c_read_device_register					; 0x14
+	ljmp	i2c_start							; 0x00
+	ljmp	i2c_stop_clock_stretch_check					; 0x03
+	ljmp	i2c_stop							; 0x06
+	ljmp	i2c_write_byte							; 0x09
+	ljmp	i2c_ack_check							; 0x0c
+	ljmp	i2c_write_byte_to_addr						; 0x0f
+	ljmp	i2c_write_byte_with_ack_check					; 0x12
+	ljmp	i2c_read_byte							; 0x15
+	ljmp	i2c_master_read_ack						; 0x18
+	ljmp	i2c_read_byte_from_addr						; 0x1b
+	ljmp	i2c_read_device_register					; 0x1e
 ; rtc library functions
 rtc_lib:
-	ajmp	rtc_get_config							; 0x00
-	ajmp	rtc_get_alarm_config						; 0x02
-	ajmp	rtc_set_config							; 0x04
-	ajmp	rtc_set_alarm_config						; 0x06
-	ajmp	rtc_init							; 0x08
-	ajmp	rtc_get_datetime						; 0x0a
-	ajmp	rtc_set_datetime						; 0x0c
+	ljmp	rtc_get_config							; 0x00
+	ljmp	rtc_get_alarm_config						; 0x03
+	ljmp	rtc_set_config							; 0x06
+	ljmp	rtc_set_alarm_config						; 0x09
+	ljmp	rtc_init							; 0x0c
+	ljmp	rtc_get_datetime						; 0x0f
+	ljmp	rtc_set_datetime						; 0x12
 ; keyboard library functions
 keyboard_lib:
-	ajmp	keyboard_scan							; 0x00
-	ajmp	keyboard_reset							; 0x02
-	ajmp	keyboard_wait_for_keypress					; 0x04
+	ljmp	keyboard_scan							; 0x00
+	ljmp	keyboard_reset							; 0x03
+	ljmp	keyboard_wait_for_keypress					; 0x06
 ; lcd library functions
 lcd_lib:
-	ajmp	lcd_off								; 0x00
-	ajmp	lcd_init							; 0x02
-	ajmp	lcd_clear_screen						; 0x04
-	ajmp	lcd_clear_screen_from_position					; 0x06
-	ajmp	lcd_new_line_scroll_and_clear					; 0x08
-	ajmp	lcd_print_character						; 0x0a
-	ajmp	lcd_set_glyph_position						; 0x0c
-	ajmp	lcd_pstr							; 0x0e
-	ajmp	lcd_set_backlight_on						; 0x10
-	ajmp	lcd_set_backlight_off						; 0x12
-	ajmp	lcd_set_contrast_inc						; 0x14
-	ajmp	lcd_set_contrast_dec						; 0x16
+	ljmp	lcd_off								; 0x00
+	ljmp	lcd_on								; 0x03
+	ljmp	lcd_init							; 0x06
+	ljmp	lcd_clear_screen						; 0x09
+	ljmp	lcd_clear_screen_from_position					; 0x0c
+	ljmp	lcd_new_line_scroll_and_clear					; 0x0f
+	ljmp	lcd_print_character						; 0x12
+	ljmp	lcd_set_glyph_position						; 0x15
+	ljmp	lcd_plot_point							; 0x18
+	ljmp	lcd_pstr							; 0x1b
+	ljmp	lcd_set_backlight_on						; 0x1e
+	ljmp	lcd_set_backlight_off						; 0x21
+	ljmp	lcd_set_contrast_inc						; 0x24
+	ljmp	lcd_set_contrast_dec						; 0x27
 ; serial library functions
 serial_lib:
-	ajmp	serial_mainport_enable						; 0x00
-	ajmp	serial_mainport_disable						; 0x02
-	ajmp	serial_rts_set							; 0x04
-	ajmp	serial_rts_unset						; 0x06
-	ajmp	serial_cts_check						; 0x08
-	ajmp	serial_baudsave_check						; 0x0a
-	ajmp	serial_baudsave_set_reload					; 0x0c
-	ajmp	serial_baudsave_set						; 0x0e
+	ljmp	serial_mainport_enable						; 0x00
+	ljmp	serial_mainport_disable						; 0x03
+	ljmp	serial_rts_set							; 0x06
+	ljmp	serial_rts_unset						; 0x09
+	ljmp	serial_cts_check						; 0x0c
+	ljmp	serial_baudsave_check						; 0x0f
+	ljmp	serial_baudsave_set_reload					; 0x12
+	ljmp	serial_baudsave_set						; 0x15
 ; power library functions
 power_lib:
-	ajmp	power_battery_main_check_charging				; 0x00
-	ajmp	power_battery_backup_check_status				; 0x02
-	ajmp	power_battery_ramcard_check_status_warn				; 0x04
-	ajmp	power_battery_ramcard_check_status_fail				; 0x06
+	ljmp	power_battery_main_check_charging				; 0x00
+	ljmp	power_battery_backup_check_status				; 0x03
+	ljmp	power_battery_ramcard_check_status_warn				; 0x06
+	ljmp	power_battery_ramcard_check_status_fail				; 0x09
 ; misc library functions
 misc_lib:
 	ljmp	piezo_beep							; 0x00
@@ -468,6 +471,15 @@ hex_to_packed_bcd:
 	orl	a, b
 	ret
 
+
+; # power_of_2
+; #
+; # Converts A to 2 to the A
+; ##########################################################################
+power_of_2:
+	mov	dptr, #power_2_conversion
+	movc	a, @a+dptr
+	ret
 
 ; ###############################################################################################################
 ; #                                                    Memory library
@@ -1767,6 +1779,64 @@ lcd_set_glyph_position_subscreen_config_next:
 	ret
 
 
+; # lcd_plot_point
+; #
+; # Plot a single point to the LCD
+; # In:
+; #   A, B - X, Y co-ordinates
+; ##########################################################################
+lcd_plot_point:
+	setb	p1.4								; Enable clock
+	mov	dph, a								; Save x position
+	anl	a, #0xc0							; We're only interested in the last 2 bits, subscreen selection
+	rr	a								; Shift into correct position
+	rr	a								; Shift into correct position
+	orl	a, #0x80							; Select LCD
+	xch	a, dph								; Store subscreen selection, get original result
+	anl	a, #0x3f							; Get column selection
+	mov	lcd_subscreen_column, a						; Save subscreen column postion
+	orl	a, #0x40							; LCD command 'Set Address'
+	push	acc								; Save command
+	lcall	lcd_send_data							; Send command
+	mov	a, b								; Get y position
+	anl	a, #0x3f							; Make sure < 64
+	mov	b, #0x08							; 8 bits per column of data
+	div	ab								; A will contain the row to select
+	push	b								; B contains the bit to set in the column, save for later
+	mov	b, a								; Save row position
+	mov	a, lcd_scroll_offset
+	rl	a
+	swap	a
+	add	a, b
+	anl	a, #7
+	orl	a, #0xb8							; LCD command 'Set Page'
+	lcall	lcd_send_data							; Send command
+;lcd_plot_point_busy_check1:
+;	acall	lcd_get_data							; Get the status register
+;	jnz	lcd_plot_point_busy_check1					; Zero = LCD ready to accept new data/instruction
+	pop	acc								; Get bit index
+	push	dph
+	acall	power_of_2							; Convert to LCD column data
+	pop	dph
+	mov	b, a								; Save bit data for later
+	orl	dph, #0x40							; Set as data operation
+	mov	p2, dph								; LCD control lines (CSA / CSB / D|I)
+	acall	lcd_get_data							; Dummy read (moves the contents of the address just set into the output register)
+	acall	lcd_get_data							; Get existing LCD data
+	orl	b, a								; Combine existing data with new point to plot
+	anl	dph, #0xbf							; Swap back to register operation
+	pop	acc								; Get the original 'Set Address' command
+	lcall	lcd_send_data							; Send command
+;lcd_plot_point_busy_check2:
+;	acall	lcd_get_data							; Get the status register
+;	jnz	lcd_plot_point_busy_check2					; Zero = LCD ready to accept new data/instruction
+	orl	dph, #0x40							; Set as data operation
+	mov	p2, dph								; LCD control lines (CSA / CSB / D|I)
+	mov	a, b
+	movx	@r0, a								; LCD data
+	clr	p1.4								; Disable clock
+	ret
+
 ; # lcd_pstr
 ; #
 ; # Print a null terminate string
@@ -1896,7 +1966,7 @@ lcd_set_contrast:
 	anl	a, #0x0f							; Make sure value valid
 	anl	lcd_properties, #0xf0						; Remove current contrast value
 	orl	a, lcd_properties						; Merge other properties with new contrast value
-	acall	lcd_set_properties						; Set new value
+	lcall	lcd_set_properties						; Set new value
 lcd_set_contrast_finish:
 	ret
 
@@ -2614,6 +2684,9 @@ keycode_2_character_table3:
 glyph_double_size_conversion_table:
 	.db	0x00, 0x03, 0x0c, 0x0f, 0x30, 0x33, 0x3c, 0x3f
 	.db	0xc0, 0xc3, 0xcc, 0xcf, 0xf0, 0xf3, 0xfc, 0xff
+
+power_2_conversion:
+	.db	0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80
 
 .org	locat+0xD00
 ; ASCII font table: 768 bytes
