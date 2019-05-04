@@ -9,8 +9,8 @@
 ; ##########################################################################
 .equ	paulmon2, 0x0000					; location where paulmon2
 ;.equ	paulmon2, 0x8000					; location where paulmon2
-.equ	oysterlib, paulmon2+0x1000				; location of oysterlib
-.equ	locat, 0x3000+paulmon2					; location for the library/commands
+.equ	oysterlib, paulmon2+0x1080				; location of oysterlib
+.equ	locat, 0x4000+paulmon2					; location for the library/commands
 
 ; PaulMON functions
 ; ##########################################################################
@@ -39,76 +39,97 @@
 ; OysterLib functions
 ; ##########################################################################
 .equ	console_lib, oysterlib+0x00
-.equ	math_lib, oysterlib+0x06
-.equ	memory_lib, oysterlib+0x0A
-.equ	i2c_lib, oysterlib+0x14
-.equ	rtc_lib, oysterlib+0x2A
-.equ	keyboard_lib, oysterlib+0x38
-.equ	lcd_lib, oysterlib+0x3E
-.equ	misc_lib, oysterlib+0x56
+.equ	math_lib, oysterlib+0x09
+.equ	memory_lib, oysterlib+0x12
+.equ	i2c_lib, oysterlib+0x24
+.equ	rtc_lib, oysterlib+0x45
+.equ	keyboard_lib, oysterlib+0x5a
+.equ	lcd_lib, oysterlib+0x63
+.equ	serial_lib, oysterlib+0x8d
+.equ	power_lib, oysterlib+0xa5
+.equ	misc_lib, oysterlib+0xb1
 
 ; console lib
 .equ	oysterlib_cout, console_lib+0x00
-.equ	oysterlib_newline, console_lib+0x02
-.equ	oysterlib_cin, console_lib+0x04
+.equ	oysterlib_newline, console_lib+0x03
+.equ	oysterlib_cin, console_lib+0x06
 
 ; math lib
 .equ	packed_bcd_to_hex, math_lib+0x00
-.equ	hex_to_packed_bcd, math_lib+0x02
+.equ	hex_to_packed_bcd, math_lib+0x03
+.equ	power_of_2, math_lib+0x06
 
 ; memory lib
 .equ	memory_set_page_psen, memory_lib+0x00
-.equ	memory_set_page_rdwr, memory_lib+0x02
-.equ	memory_set_mode_psen, memory_lib+0x04
-.equ	memory_set_mode_rdwr, memory_lib+0x06
-.equ	memory_ramcard_present, memory_lib+0x08
+.equ	memory_set_page_rdwr, memory_lib+0x03
+.equ	memory_set_mode_psen, memory_lib+0x06
+.equ	memory_set_mode_rdwr, memory_lib+0x09
+.equ	memory_ramcard_present, memory_lib+0x0c
+.equ	memory_ramcard_write_protect, memory_lib+0x0f
 
 ; i2c lib
 .equ	i2c_start, i2c_lib+0x00
-.equ	i2c_stop_clock_stretch_check, i2c_lib+0x02
-.equ	i2c_stop, i2c_lib+0x04
-.equ	i2c_write_byte, i2c_lib+0x06
-.equ	i2c_ack_check, i2c_lib+0x08
-.equ	i2c_write_byte_to_addr, i2c_lib+0x0a
-.equ	i2c_write_byte_with_ack_check, i2c_lib+0x0c
-.equ	i2c_read_byte, i2c_lib+0x0e
-.equ	i2c_master_read_ack, i2c_lib+0x10
-.equ	i2c_read_byte_from_addr, i2c_lib+0x12
-.equ	i2c_read_device_register, i2c_lib+0x14
+.equ	i2c_stop_clock_stretch_check, i2c_lib+0x03
+.equ	i2c_stop, i2c_lib+0x06
+.equ	i2c_write_byte, i2c_lib+0x09
+.equ	i2c_ack_check, i2c_lib+0x0c
+.equ	i2c_write_byte_to_addr, i2c_lib+0x0f
+.equ	i2c_write_byte_with_ack_check, i2c_lib+0x12
+.equ	i2c_read_byte, i2c_lib+0x15
+.equ	i2c_master_read_ack, i2c_lib+0x18
+.equ	i2c_read_byte_from_addr, i2c_lib+0x1b
+.equ	i2c_read_device_register, i2c_lib+0x1e
 
 ; rtc lib
 .equ	rtc_get_config, rtc_lib+0x00
-.equ	rtc_get_alarm_config, rtc_lib+0x02
-.equ	rtc_set_config, rtc_lib+0x04
-.equ	rtc_set_alarm_config, rtc_lib+0x06
-.equ	rtc_init, rtc_lib+0x08
-.equ	rtc_get_datetime, rtc_lib+0x0a
-.equ	rtc_set_datetime, rtc_lib+0x0c
+.equ	rtc_get_alarm_config, rtc_lib+0x03
+.equ	rtc_set_config, rtc_lib+0x06
+.equ	rtc_set_alarm_config, rtc_lib+0x09
+.equ	rtc_init, rtc_lib+0x0c
+.equ	rtc_get_datetime, rtc_lib+0x0f
+.equ	rtc_set_datetime, rtc_lib+0x12
 
 ; keyboard lib
 .equ	keyboard_scan, keyboard_lib+0x00
-.equ	keyboard_reset, keyboard_lib+0x02
-.equ	keyboard_wait_for_keypress, keyboard_lib+0x04
+.equ	keyboard_reset, keyboard_lib+0x03
+.equ	keyboard_wait_for_keypress, keyboard_lib+0x06
 
 ; lcd lib
 .equ	lcd_off, lcd_lib+0x00
-.equ	lcd_init, lcd_lib+0x02
-.equ	lcd_clear_screen, lcd_lib+0x04
-.equ	lcd_clear_screen_from_position, lcd_lib+0x06
-.equ	lcd_new_line_scroll_and_clear, lcd_lib+0x08
-.equ	lcd_print_character, lcd_lib+0x0a
-.equ	lcd_set_glyph_position, lcd_lib+0x0c
-.equ	lcd_pstr, lcd_lib+0x0e
-.equ	lcd_set_backlight_on, lcd_lib+0x10
-.equ	lcd_set_backlight_off, lcd_lib+0x12
-.equ	lcd_set_contrast_inc, lcd_lib+0x14
-.equ	lcd_set_contrast_dec, lcd_lib+0x16
+.equ	lcd_on, lcd_lib+0x03
+.equ	lcd_init, lcd_lib+0x06
+.equ	lcd_clear_screen, lcd_lib+0x09
+.equ	lcd_clear_screen_from_position, lcd_lib+0x0c
+.equ	lcd_new_line_scroll_and_clear, lcd_lib+0x0f
+.equ	lcd_print_character, lcd_lib+0x12
+.equ	lcd_set_glyph_position, lcd_lib+0x15
+.equ	lcd_plot_point, lcd_lib+0x18
+.equ	lcd_pstr, lcd_lib+0x1b
+.equ	lcd_set_backlight_on, lcd_lib+0x1e
+.equ	lcd_set_backlight_off, lcd_lib+0x21
+.equ	lcd_set_contrast_inc, lcd_lib+0x24
+.equ	lcd_set_contrast_dec, lcd_lib+0x27
+
+; serial lib
+.equ	serial_mainport_enable, serial_lib+0x00
+.equ	serial_mainport_disable, serial_lib+0x03
+.equ	serial_rts_set, serial_lib+0x06
+.equ	serial_rts_unset, serial_lib+0x09
+.equ	serial_cts_check, serial_lib+0x0c
+.equ	serial_baudsave_check, serial_lib+0x0f
+.equ	serial_baudsave_set_reload, serial_lib+0x12
+.equ	serial_baudsave_set, serial_lib+0x15
+
+; power lib
+.equ	power_battery_main_check_charging, power_lib+0x00
+.equ	power_battery_backup_check_status, power_lib+0x03
+.equ	power_battery_ramcard_check_status_warn, power_lib+0x06
+.equ	power_battery_ramcard_check_status_fail, power_lib+0x09
 
 ; misc lib
 .equ	piezo_beep, misc_lib+0x00
-.equ	piezo_pwm_sound, misc_lib+0x02
-.equ	sdelay, misc_lib+0x04
-.equ	battery_check_status, misc_lib+0x06
+.equ	piezo_pwm_sound, misc_lib+0x03
+.equ	sdelay, misc_lib+0x06
 
 ; SFR definitions
 ; ##########################################################################
@@ -147,10 +168,25 @@
 .equ	mem_page_psen, 0x58					; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59					; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A					; Used to select the correct keymap
+.equ	tmp_var, 0x60
+.equ	current_year, 0x67					; The current year as an offset from 2000 (needed as the RTC only stores 2 bits for the year)
+; 0x68-0x6B used by baud_save
+.equ	lcd_props_save, 0x6C					; Used to retain the backlight/contrast settings when the screen is off
+.equ	sys_props_save, 0x6D					; System config
+								;	0 - key_click
+								;	1 - Main serial port status
+.equ	sys_cfg_chksum_inv, 0x6E				; Checksum (inverted) of the system configuration
+.equ	sys_cfg_checksum, 0x6F					; Checksum of the system configuration
+
+; Definitions for the system config save/restore rountines
+; So there is only one place to update
+.equ	sys_config_start, current_year
+.equ	sys_config_end, sys_props_save
 
 ; Bit RAM definitions
 ; ##########################################################################
 .flag	use_oysterlib, 0x20.0
+.flag	key_click, 0x20.1
 .flag	mem_mode_psen_ram, 0x20.2				; This bit is not randomly chosen, see memory command
 .flag	mem_mode_psen_ram_card, 0x20.3				; This bit is not randomly chosen, see memory command
 .flag	tmp_bit, 0x20.4
@@ -325,6 +361,9 @@ i2c_tool_menu:
 	mov	dptr, #str_i2c_write_reg
 	lcall	pstr
 	lcall	oysterlib_newline
+	mov	dptr, #str_i2c_dump_regs
+	lcall	pstr
+	lcall	oysterlib_newline
 	mov	dptr, #str_menu_quit
 	lcall	pstr
 	lcall	oysterlib_newline
@@ -340,8 +379,12 @@ i2c_tool_menu_2:
 	acall	i2c_tool_read_register
 	sjmp	i2c_tool_menu_else
 i2c_tool_menu_3:
-	cjne	a, #'3', i2c_tool_menu_quit
+	cjne	a, #'3', i2c_tool_menu_4
 	acall	i2c_tool_write_register
+	sjmp	i2c_tool_menu_else
+i2c_tool_menu_4:
+	cjne	a, #'4', i2c_tool_menu_quit
+	acall	i2c_tool_dump_registers
 	sjmp	i2c_tool_menu_else
 i2c_tool_menu_quit:
 	cjne	a, #'0', i2c_tool_menu_else
@@ -476,10 +519,48 @@ i2c_tool_write_register_result:
 	lcall	pstr
 	ljmp	oysterlib_newline
 
+i2c_tool_dump_registers:
+	mov	dptr, #str_i2c_addr
+	lcall	pstr
+	lcall	ghex						; Get i2c address
+	rl	a						; Shift address
+	mov	b, a						; Save i2c address
+	lcall	oysterlib_newline
+	mov	tmp_var, #0x00					; Start with address 0x00
+	mov	a, tmp_var
+	lcall	i2c_write_byte_to_addr				; Select register
+	jnc	i2c_tool_dump_registers_restart			; Check for errors
+	ajmp	i2c_tool_read_register_address_failed
+i2c_tool_dump_registers_restart:
+	lcall	i2c_start					; I2C restart
+	mov	a, b						; Get i2c address
+	inc	a						; Read operation
+	lcall	i2c_write_byte					; Re-open connection
+	lcall	i2c_ack_check					; Check for errors
+	jnc	i2c_tool_dump_registers_read_reg
+	ajmp	i2c_tool_read_register_address_failed
+i2c_tool_dump_registers_read_reg:
+	mov	a, tmp_var
+	anl	a, #0x0f
+	jnz	i2c_tool_dump_registers_read_reg_do
+	lcall	oysterlib_newline
+i2c_tool_dump_registers_read_reg_do:
+	lcall	i2c_read_byte					; Get config/status
+	lcall	i2c_master_read_ack				; ACK read
+	lcall	phex						; Print byte
+	mov	a, #0x20
+	lcall	oysterlib_cout					; Space
+	inc	tmp_var
+	mov	a, tmp_var
+	cjne	a, 0x00, i2c_tool_dump_registers_read_reg
+	lcall	i2c_stop
+	ljmp	oysterlib_newline
+
 str_i2c_header:		.db	"I2C Tool:", 0
 str_i2c_bus_scan:	.db	"	1 - Bus Scan", 0
 str_i2c_read_reg:	.db	"	2 - Read Register", 0
 str_i2c_write_reg:	.db	"	3 - Write Register", 0
+str_i2c_dump_regs:	.db	"	4 - Dump Registers", 0
 
 
 ;---------------------------------------------------------;
@@ -488,7 +569,7 @@ str_i2c_write_reg:	.db	"	3 - Write Register", 0
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0x300
+.org    locat+0x400
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     254,'#',0,0		; id (254=cmd)
 .db     0,0,0,0			; prompt code vector
@@ -498,7 +579,7 @@ str_i2c_write_reg:	.db	"	3 - Write Register", 0
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "Screen tool",0
-.org    locat+0x340		; executable code begins here
+.org    locat+0x440		; executable code begins here
 
 
 screen_tool:
