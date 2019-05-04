@@ -17,9 +17,10 @@
 
 ; define the storage location
 ; ##########################################################################
-.equ	paulmon2, 0x0000	;location where paulmon2
-;.equ	paulmon2, 0x8000	;location where paulmon2
-.equ	locat, 0x1000+paulmon2	;location for the library/commands
+.equ	paulmon2, 0x0000							; Location where paulmon2
+;.equ	paulmon2, 0x8000							; Location where paulmon2
+.equ	locat, 0x1000+paulmon2							; Location for the library/commands
+.equ	isv_handler, 0x8000							; Location of ISV handlers
 
 ; These equ lines allow us to call functions within PAULMON2
 ; by their names.
@@ -122,19 +123,32 @@
 .equ	lcd_start_position, 0x52						; Start position for LCD operations (b0-b4 - column, b5-7 - row)
 .equ	lcd_subscreen_row, 0x53							; Current subscreen row
 .equ	lcd_subscreen_column, 0x54						; Current subscreen column
-.equ	lcd_properties, 0x55							; Current contrast/backlight value
+.equ	lcd_properties, 0x55							; Current contrast/backlight value (represents latch value)
+										;	0-3 - Contrast
+										;	4 - Backlight
+										;	5 - Flash programming voltage enable
 .equ	keycode_raw, 0x56							; Raw keycode, read from hardware
 .equ	keycode_ascii, 0x57							; Processed raw keycode to ASCII keymap
 .equ	mem_page_psen, 0x58							; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59							; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A							; Used to select the correct keymap
+.equ	tmp_sd0, 0x5B								; sdelay temp
+.equ	tmp_sd1, 0x5C								; sdelay temp
+.equ	tmp_sd2, 0x5D								; sdelay temp
+.equ	i2c_tmp, 0x5E								; temporary storage for i2c comms.
 .equ	tmp_var, 0x60
 .equ	current_year, 0x67							; The current year as an offset from 2000 (needed as the RTC only stores 2 bits for the year)
 ; 0x68-0x6B used by baud_save
 .equ	lcd_props_save, 0x6C							; Used to retain the backlight/contrast settings when the screen is off
+										;	0-3 - Contrast
+										;	4 - Backlight
+										;	5 - Flash programming voltage enable
+										;	6 - Not used (not latched)
+										;	7 - LCD enabled flag (not latched)
 .equ	sys_props_save, 0x6D							; System config
 										;	0 - key_click
 										; 	1 - Main serial port status
+										;	7 - Set when the processor is idled
 .equ	sys_cfg_chksum_inv, 0x6E						; Checksum (inverted) of the system configuration
 .equ	sys_cfg_checksum, 0x6F							; Checksum of the system configuration
 
@@ -176,7 +190,75 @@
 .equ	BAUD_150, 0x00
 
 
-.org	locat
+; ###############################################################################################################
+; #                                                     OysterLib ISVs
+; ###############################################################################################################
+
+; Startup (not used obviously)
+.org    locat+0x0000
+
+; External interrupt 0 (INT0)
+.org    locat+0x0003
+	ljmp	power_button_event
+
+; Timer 0 overflow
+.org    locat+0x000B
+	ljmp	isv_handler+0x0B
+
+; External interrupt 1 (INT1)
+.org    locat+0x0013
+	ljmp	isv_handler+0x13
+
+; Timer 1 overflow
+.org    locat+0x001B
+	ljmp	isv_handler+0x1B
+
+; SIO0 (UART)
+.org    locat+0x0023
+	ljmp	isv_handler+0x23
+
+; SIO1 (I2C, doesn't exist)
+.org    locat+0x002B
+	ljmp	isv_handler+0x2B
+
+; Timer 2 capture 0
+.org    locat+0x0033
+	ljmp	isv_handler+0x33
+
+; Timer 2 capture 1
+.org    locat+0x003B
+	ljmp	isv_handler+0x3B
+
+; Timer 2 capture 2
+.org    locat+0x0043
+	ljmp	isv_handler+0x43
+
+; Timer 2 capture 3
+.org    locat+0x004B
+	ljmp	isv_handler+0x4B
+
+; ADC completion
+.org    locat+0x0053
+	ljmp	isv_handler+0x53
+
+; Timer 2 compare 0
+.org    locat+0x005B
+	ljmp	isv_handler+0x5B
+
+; Timer 2 compare 1
+.org    locat+0x0063
+	ljmp	isv_handler+0x63
+
+; Timer 2 compare 2
+.org    locat+0x006B
+	ljmp	isv_handler+0x6B
+
+; Timer 2 overflow
+.org    locat+0x0073
+	ljmp	isv_handler+0x73
+
+
+.org	locat+0x0080
 ; ###############################################################################################################
 ; #                                                  Library jump table
 ; ###############################################################################################################
@@ -184,83 +266,86 @@
 
 ; console functions
 console_lib:
-	ajmp	oyster_cout							; 0x00
-	ajmp	oyster_newline							; 0x02
-	ajmp	oyster_cin							; 0x04
+	ljmp	oyster_cout							; 0x00
+	ljmp	oyster_newline							; 0x03
+	ljmp	oyster_cin							; 0x06
 ; math library functions
 math_lib:
-	ajmp	packed_bcd_to_hex						; 0x00
-	ajmp	hex_to_packed_bcd						; 0x02
+	ljmp	packed_bcd_to_hex						; 0x00
+	ljmp	hex_to_packed_bcd						; 0x03
+	ljmp	power_of_2							; 0x06
 ; memory library function
 memory_lib:
-	ajmp	memory_set_page_psen						; 0x00
-	ajmp	memory_set_page_rdwr						; 0x02
-	ajmp	memory_set_mode_psen						; 0x04
-	ajmp	memory_set_mode_rdwr						; 0x06
-	ajmp	memory_ramcard_present						; 0x08
-	ajmp	memory_ramcard_write_protect					; 0x0a
+	ljmp	memory_set_page_psen						; 0x00
+	ljmp	memory_set_page_rdwr						; 0x03
+	ljmp	memory_set_mode_psen						; 0x06
+	ljmp	memory_set_mode_rdwr						; 0x09
+	ljmp	memory_ramcard_present						; 0x0c
+	ljmp	memory_ramcard_write_protect					; 0x0f
 ; i2c library functions
 i2c_lib:
-	ajmp	i2c_start							; 0x00
-	ajmp	i2c_stop_clock_stretch_check					; 0x02
-	ajmp	i2c_stop							; 0x04
-	ajmp	i2c_write_byte							; 0x06
-	ajmp	i2c_ack_check							; 0x08
-	ajmp	i2c_write_byte_to_addr						; 0x0a
-	ajmp	i2c_write_byte_with_ack_check					; 0x0c
-	ajmp	i2c_read_byte							; 0x0e
-	ajmp	i2c_master_read_ack						; 0x10
-	ajmp	i2c_read_byte_from_addr						; 0x12
-	ajmp	i2c_read_device_register					; 0x14
+	ljmp	i2c_start							; 0x00
+	ljmp	i2c_stop_clock_stretch_check					; 0x03
+	ljmp	i2c_stop							; 0x06
+	ljmp	i2c_write_byte							; 0x09
+	ljmp	i2c_ack_check							; 0x0c
+	ljmp	i2c_write_byte_to_addr						; 0x0f
+	ljmp	i2c_write_byte_with_ack_check					; 0x12
+	ljmp	i2c_read_byte							; 0x15
+	ljmp	i2c_master_read_ack						; 0x18
+	ljmp	i2c_read_byte_from_addr						; 0x1b
+	ljmp	i2c_read_device_register					; 0x1e
 ; rtc library functions
 rtc_lib:
-	ajmp	rtc_get_config							; 0x00
-	ajmp	rtc_get_alarm_config						; 0x02
-	ajmp	rtc_set_config							; 0x04
-	ajmp	rtc_set_alarm_config						; 0x06
-	ajmp	rtc_init							; 0x08
-	ajmp	rtc_get_datetime						; 0x0a
-	ajmp	rtc_set_datetime						; 0x0c
+	ljmp	rtc_get_config							; 0x00
+	ljmp	rtc_get_alarm_config						; 0x03
+	ljmp	rtc_set_config							; 0x06
+	ljmp	rtc_set_alarm_config						; 0x09
+	ljmp	rtc_init							; 0x0c
+	ljmp	rtc_get_datetime						; 0x0f
+	ljmp	rtc_set_datetime						; 0x12
 ; keyboard library functions
 keyboard_lib:
-	ajmp	keyboard_scan							; 0x00
-	ajmp	keyboard_reset							; 0x02
-	ajmp	keyboard_wait_for_keypress					; 0x04
+	ljmp	keyboard_scan							; 0x00
+	ljmp	keyboard_reset							; 0x03
+	ljmp	keyboard_wait_for_keypress					; 0x06
 ; lcd library functions
 lcd_lib:
-	ajmp	lcd_off								; 0x00
-	ajmp	lcd_init							; 0x02
-	ajmp	lcd_clear_screen						; 0x04
-	ajmp	lcd_clear_screen_from_position					; 0x06
-	ajmp	lcd_new_line_scroll_and_clear					; 0x08
-	ajmp	lcd_print_character						; 0x0a
-	ajmp	lcd_set_glyph_position						; 0x0c
-	ajmp	lcd_pstr							; 0x0e
-	ajmp	lcd_set_backlight_on						; 0x10
-	ajmp	lcd_set_backlight_off						; 0x12
-	ajmp	lcd_set_contrast_inc						; 0x14
-	ajmp	lcd_set_contrast_dec						; 0x16
+	ljmp	lcd_off								; 0x00
+	ljmp	lcd_on								; 0x03
+	ljmp	lcd_init							; 0x06
+	ljmp	lcd_clear_screen						; 0x09
+	ljmp	lcd_clear_screen_from_position					; 0x0c
+	ljmp	lcd_new_line_scroll_and_clear					; 0x0f
+	ljmp	lcd_print_character						; 0x12
+	ljmp	lcd_set_glyph_position						; 0x15
+	ljmp	lcd_plot_point							; 0x18
+	ljmp	lcd_pstr							; 0x1b
+	ljmp	lcd_set_backlight_on						; 0x1e
+	ljmp	lcd_set_backlight_off						; 0x21
+	ljmp	lcd_set_contrast_inc						; 0x24
+	ljmp	lcd_set_contrast_dec						; 0x27
 ; serial library functions
 serial_lib:
-	ajmp	serial_mainport_enable						; 0x00
-	ajmp	serial_mainport_disable						; 0x02
-	ajmp	serial_rts_set							; 0x04
-	ajmp	serial_rts_unset						; 0x06
-	ajmp	serial_cts_check						; 0x08
-	ajmp	serial_baudsave_check						; 0x0a
-	ajmp	serial_baudsave_set_reload					; 0x0c
-	ajmp	serial_baudsave_set						; 0x0e
+	ljmp	serial_mainport_enable						; 0x00
+	ljmp	serial_mainport_disable						; 0x03
+	ljmp	serial_rts_set							; 0x06
+	ljmp	serial_rts_unset						; 0x09
+	ljmp	serial_cts_check						; 0x0c
+	ljmp	serial_baudsave_check						; 0x0f
+	ljmp	serial_baudsave_set_reload					; 0x12
+	ljmp	serial_baudsave_set						; 0x15
 ; power library functions
 power_lib:
-	ajmp	power_battery_main_check_charging				; 0x00
-	ajmp	power_battery_backup_check_status				; 0x02
-	ajmp	power_battery_ramcard_check_status_warn				; 0x04
-	ajmp	power_battery_ramcard_check_status_fail				; 0x06
+	ljmp	power_battery_main_check_charging				; 0x00
+	ljmp	power_battery_backup_check_status				; 0x03
+	ljmp	power_battery_ramcard_check_status_warn				; 0x06
+	ljmp	power_battery_ramcard_check_status_fail				; 0x09
 ; misc library functions
 misc_lib:
-	ajmp	piezo_beep							; 0x00
-	ajmp	piezo_pwm_sound							; 0x02
-	ajmp	sdelay								; 0x04
+	ljmp	piezo_beep							; 0x00
+	ljmp	piezo_pwm_sound							; 0x03
+	ljmp	sdelay								; 0x06
 
 
 ; ###############################################################################################################
@@ -385,6 +470,15 @@ hex_to_packed_bcd:
 	orl	a, b
 	ret
 
+
+; # power_of_2
+; #
+; # Converts A to 2 to the A
+; ##########################################################################
+power_of_2:
+	mov	dptr, #power_2_conversion
+	movc	a, @a+dptr
+	ret
 
 ; ###############################################################################################################
 ; #                                                    Memory library
@@ -612,7 +706,7 @@ i2c_stop_clock_stretch_check:
 ; # Set stop condition on i2c bus
 ; ##########################################################################
 i2c_stop:
-	mov	r0, #0								; Setup loop count (255)
+	mov	i2c_tmp, #0							; Setup loop count (255)
 i2c_stop_loop:
 	clr	i2c_scl								; Clear SCL
 	clr	i2c_sda								; Clear SDA
@@ -621,7 +715,7 @@ i2c_stop_loop:
 	setb	i2c_scl								; Set SCL
 	setb	i2c_sda								; Set SDA
 	jb	i2c_sda, i2c_stop_exit						; Has SDA been released?
-	djnz	r0, i2c_stop_loop						; It hasn't, so loop
+	djnz	i2c_tmp, i2c_stop_loop						; It hasn't, so loop
 i2c_stop_exit:
 	ret
 
@@ -632,7 +726,7 @@ i2c_stop_exit:
 ; # A - byte to write out
 ; ##########################################################################
 i2c_write_byte:
-	mov	r0, #8								; Move 8 into r0 (number of bits)
+	mov	i2c_tmp, #8							; Move 8 into i2c_tmp (number of bits)
 	rlc	a								; Rotate A into Carry
 	mov	i2c_sda, c							; Set i2c bit data from Carry
 i2c_write_byte_scl_wait:
@@ -646,7 +740,7 @@ i2c_write_byte_rest:
 	rlc	a								; Get next bit
 	nop									; NOP - wait for i2c data to 'settle'
 	clr	i2c_scl								; Clear SCL to ready for next bit
-	djnz	r0, i2c_write_byte_rest_loop					; Loop through byte
+	djnz	i2c_tmp, i2c_write_byte_rest_loop				; Loop through byte
 	setb	i2c_sda								; Release i2c data line
 	ret
 
@@ -656,10 +750,10 @@ i2c_write_byte_rest:
 ; # Check for ACK/NACK, set Carry if NACKed
 ; ##########################################################################
 i2c_ack_check:
-	mov	r0, #0								; Setup loop count (255)
+	mov	i2c_tmp, #0							; Setup loop count (255)
 i2c_ack_check_loop:
 	jnb	i2c_sda, i2c_ack_check_acked					; Check to see if byte ACKed
-	djnz	r0, i2c_ack_check_loop						; Keep checking bit
+	djnz	i2c_tmp, i2c_ack_check_loop					; Keep checking bit
 	setb	c								; Indicate NACKed
 	setb	i2c_scl
 	ret
@@ -681,7 +775,7 @@ i2c_ack_check_acked:
 i2c_write_byte_to_addr:
 	push	acc
 	acall	i2c_start
-	mov	a,b
+	mov	a, b
 	acall	i2c_write_byte
 	acall	i2c_ack_check
 	pop	acc
@@ -704,7 +798,7 @@ i2c_write_byte_return:
 ; # A - contains byte read
 ; ##########################################################################
 i2c_read_byte:
-	mov	r0, #8								; Move 8 into r0 (num bits)
+	mov	i2c_tmp, #8							; Move 8 into i2c_tmp (num bits)
 	clr	a								; Clear A, will store data here
 i2c_read_byte_loop:
 	setb	i2c_scl								; Set SCL to get next bit
@@ -712,7 +806,7 @@ i2c_read_byte_loop:
 	mov	c, i2c_sda							; Copy i2c bit data into Carry
 	clr	i2c_scl								; Clear SCL to ready for next bit
 	rlc	a								; Rotate Carry in to A to build byte
-	djnz	r0, i2c_read_byte_loop						; Loop to build byte
+	djnz	i2c_tmp, i2c_read_byte_loop					; Loop to build byte
 	ret
 
 
@@ -876,10 +970,9 @@ rtc_init:
 	acall	rtc_set_config							; Config RTC2
 	jc	rtc_init_finish							; Exit on error
 
-	mov	a, #0x30							; Timer function: no timer, Alarm/Timer flag: no interrupt, no timer alarm, Clock alarm: dated alarm
-	mov	b, #rtc_addr1
-	acall	rtc_set_alarm_config						; Config RTC1 alarm
-	jc	rtc_init_finish							; Exit on error
+	lcall	rtc_alarm_init							; Initialise the alarm register
+	jc	rtc_init_finish
+
 ; # rtc_start
 ; #
 ; # Used in conjunction with rtc_stop when the date/time needs to be updated
@@ -892,6 +985,36 @@ rtc_start:
 
 	clr	c
 rtc_init_finish:
+	ret
+
+
+; # rtc_alarm_init
+; #
+; # Reset the RTC's alarm config
+; ##########################################################################
+rtc_alarm_init:
+	mov	a, #0x30							; Timer function: no timer, Alarm/Timer flag: no interrupt, no timer alarm, Clock alarm: dated alarm
+	mov	b, #rtc_addr1
+	acall	rtc_set_alarm_config						; Config RTC1 alarm
+	jc	rtc_alarm_init_finish						; Exit on error
+	clr	c
+rtc_alarm_init_finish:
+	ret
+
+
+; # rtc_alarm_clear_active
+; #
+; # Clears an active clock alarm
+; ##########################################################################
+rtc_alarm_clear_active:
+	mov	b, #rtc_addr1
+	acall	rtc_get_config							; Get the current alarm status
+	jnb	acc.1, rtc_alarm_clear_active_finish
+	anl	a, #0xfd							; Clear alarm flag
+	mov	b, #rtc_addr1
+	acall	rtc_set_config
+	acall	rtc_alarm_init							; Clear alarm enable flag
+rtc_alarm_clear_active_finish:
 	ret
 
 
@@ -944,9 +1067,9 @@ rtc_get_datetime:
 rtc_get_datetime_main:
 	mov	b, #rtc_addr1
 	acall	i2c_read_device_register					; Get value
-	jc	rtc_get_datetime_finish
+	jc	rtc_get_datetime_error
 	acall	i2c_master_read_ack
-	push	acc								; Store seconds for later (r0 used by i2c_*)
+	mov	r0, a								; Store seconds
 	acall	i2c_read_byte							; Get value
 	acall	i2c_master_read_ack
 	mov	r1, a								; Store minutes
@@ -968,10 +1091,8 @@ rtc_get_datetime_main:
 	anl	a, #1fh								; Lose weekday data
 	mov	r4, a								; Store month
 	clr	c
-rtc_get_datetime_finish:
+rtc_get_datetime_error:
 	acall	i2c_stop_clock_stretch_check
-	pop	acc
-	mov	r0, a
 	ret
 
 
@@ -990,8 +1111,6 @@ rtc_get_datetime_finish:
 ; #   Carry - error
 ; ##########################################################################
 rtc_set_alarm_datetime:
-	mov	a, r0								; Save for later (r0 used by i2c_*)
-	push	acc
 	mov	a, #0x09							; Alarm hundreths of a second
 	sjmp	rtc_set_datetime_main
 ; # rtc_set_datetime
@@ -1009,8 +1128,6 @@ rtc_set_alarm_datetime:
 ; #   Carry - error
 ; ##########################################################################
 rtc_set_datetime:
-	mov	a, r0								; Save for later (r0 used by i2c_*)
-	push	acc
 	mov	a, #1								; Hundreths of a second
 rtc_set_datetime_main:
 	mov	b, #rtc_addr1
@@ -1019,7 +1136,7 @@ rtc_set_datetime_main:
 	mov	a, #0								; Just zero hundreths of a second
 	acall	i2c_write_byte_with_ack_check					; Load hundreths of a second
 	jc	rtc_set_datetime_finish
-	pop	acc
+	mov	a, r0
 	acall	i2c_write_byte_with_ack_check					; Load seconds
 	jc	rtc_set_datetime_finish
 	mov	a, r1
@@ -1098,7 +1215,7 @@ keyboard_scan:
 keyboard_scan_column:
 	movx	@dptr, a							; Load column selection
 	nop
-	nop										; Wait for signals to propagate
+	nop									; Wait for signals to propagate
 	jnb	p1.5, keyboard_read_key						; Has the row select irq been set
 	rr	a								; Next column
 	djnz	r0, keyboard_scan_column
@@ -1189,8 +1306,9 @@ keyboard_read_key_make_keycode_check_mode_inc:
 	mov	keymap_offset, a
 	cjne	a, #0x61, keyboard_read_key_make_keycode_check_mode_inc_cmp	; Check if we have cycled through all keymaps
 keyboard_read_key_make_keycode_check_mode_inc_cmp:
-	jc	keyboard_reset
+	jc	keyboard_read_key_make_keycode_check_mode_inc_cmp_reset
 	mov	keymap_offset, #0x00						; Select default keymap
+keyboard_read_key_make_keycode_check_mode_inc_cmp_reset:
 	ajmp	keyboard_reset
 keyboard_read_key_make_keycode_check_mode_lock:
 	cjne	a, #0x2C, keyboard_read_key_make_keycode_ascii			; Check for 'DEL' key
@@ -1285,6 +1403,8 @@ lcd_get_data:
 ; # Cycle through the subscreens turning them off
 ; ##########################################################################
 lcd_off:
+	anl	lcd_props_save, #0x7f
+lcd_off_dont_flag:
 	acall	lcd_set_properties_off						; Turn off backlight, et al.
 
 	setb	p1.4								; Enable clock
@@ -1300,18 +1420,36 @@ lcd_off_subscreen:
 	ret
 
 
+; # lcd_on
+; #
+; # Cycle through subscreens turning them on
+; ##########################################################################
+lcd_on:
+	orl	lcd_props_save, #0x80						; Set LCD enabled flag
+	acall	lcd_set_properties_defaults					; Set contrast, turn on backlight if it's configured
+
+	setb	p1.4								; Enable clock
+	mov	dph, #0x80							; Select LCD (command register)
+lcd_on_subscreen:
+	mov	a, #0x3f							; LCD command 'Turn on'
+	lcall	lcd_send_data							; Send command
+	mov	a, dph
+	add	a, #0x10							; Select next subscreen
+	mov	dph, a
+	cjne	a, #0xb0, lcd_on_subscreen					; Enable next subscreen
+	clr	p1.4								; Disable clock
+	ret
+
 ; # lcd_init
 ; #
 ; # Initialise the LCD, clear the memory
 ; ##########################################################################
 lcd_init:
-	acall	lcd_set_properties_defaults
+	acall	lcd_on								; Enable lcd
 
 	setb	p1.4								; Enable clock
 	mov	dph, #0x80							; Select LCD (command register)
 lcd_init_subscreen:
-	mov	a, #0x3f							; LCD command 'Turn on'
-	lcall	lcd_send_data							; Send command
 	mov	a, #0xc0							; LCD command 'Display start line' #0
 	lcall	lcd_send_data							; Send command
 	mov	a, dph
@@ -1640,6 +1778,64 @@ lcd_set_glyph_position_subscreen_config_next:
 	ret
 
 
+; # lcd_plot_point
+; #
+; # Plot a single point to the LCD
+; # In:
+; #   A, B - X, Y co-ordinates
+; ##########################################################################
+lcd_plot_point:
+	setb	p1.4								; Enable clock
+	mov	dph, a								; Save x position
+	anl	a, #0xc0							; We're only interested in the last 2 bits, subscreen selection
+	rr	a								; Shift into correct position
+	rr	a								; Shift into correct position
+	orl	a, #0x80							; Select LCD
+	xch	a, dph								; Store subscreen selection, get original result
+	anl	a, #0x3f							; Get column selection
+	mov	lcd_subscreen_column, a						; Save subscreen column postion
+	orl	a, #0x40							; LCD command 'Set Address'
+	push	acc								; Save command
+	lcall	lcd_send_data							; Send command
+	mov	a, b								; Get y position
+	anl	a, #0x3f							; Make sure < 64
+	mov	b, #0x08							; 8 bits per column of data
+	div	ab								; A will contain the row to select
+	push	b								; B contains the bit to set in the column, save for later
+	mov	b, a								; Save row position
+	mov	a, lcd_scroll_offset
+	rl	a
+	swap	a
+	add	a, b
+	anl	a, #7
+	orl	a, #0xb8							; LCD command 'Set Page'
+	lcall	lcd_send_data							; Send command
+;lcd_plot_point_busy_check1:
+;	acall	lcd_get_data							; Get the status register
+;	jnz	lcd_plot_point_busy_check1					; Zero = LCD ready to accept new data/instruction
+	pop	acc								; Get bit index
+	push	dph
+	acall	power_of_2							; Convert to LCD column data
+	pop	dph
+	mov	b, a								; Save bit data for later
+	orl	dph, #0x40							; Set as data operation
+	mov	p2, dph								; LCD control lines (CSA / CSB / D|I)
+	acall	lcd_get_data							; Dummy read (moves the contents of the address just set into the output register)
+	acall	lcd_get_data							; Get existing LCD data
+	orl	b, a								; Combine existing data with new point to plot
+	anl	dph, #0xbf							; Swap back to register operation
+	pop	acc								; Get the original 'Set Address' command
+	lcall	lcd_send_data							; Send command
+;lcd_plot_point_busy_check2:
+;	acall	lcd_get_data							; Get the status register
+;	jnz	lcd_plot_point_busy_check2					; Zero = LCD ready to accept new data/instruction
+	orl	dph, #0x40							; Set as data operation
+	mov	p2, dph								; LCD control lines (CSA / CSB / D|I)
+	mov	a, b
+	movx	@r0, a								; LCD data
+	clr	p1.4								; Disable clock
+	ret
+
 ; # lcd_pstr
 ; #
 ; # Print a null terminate string
@@ -1690,8 +1886,9 @@ lcd_set_properties_defaults:
 ; #   A - LCD properties value
 ; ##########################################################################
 lcd_set_properties:
-	mov	lcd_props_save, a						; Save config
-	anl	lcd_props_save, #0x1f						; Make sure we only save the values we are interested in
+	anl	lcd_props_save, #0xe0						; Clear everything but the top 3 msbs
+	anl	a, #0x1f							; Make sure we don't accidently overwrite something
+	orl	lcd_props_save, a						; Save new value
 lcd_set_properties_do:
 	mov	lcd_properties, a
 	setb	p1.4
@@ -1768,7 +1965,7 @@ lcd_set_contrast:
 	anl	a, #0x0f							; Make sure value valid
 	anl	lcd_properties, #0xf0						; Remove current contrast value
 	orl	a, lcd_properties						; Merge other properties with new contrast value
-	acall	lcd_set_properties						; Set new value
+	lcall	lcd_set_properties						; Set new value
 lcd_set_contrast_finish:
 	ret
 
@@ -1808,20 +2005,18 @@ print_bcd_digit:
 ; ##########################################################################
 serial_mainport_enable:
 	orl	sys_props_save, #0x02						; Set flag
-	sjmp	serial_mainport_set_state
+	setb	sfr_p4_80c562.7
+	ret
+
+
 ; # serial_mainport_disable
 ; #
 ; # Disables the main serial port (P1) receivers
 ; ##########################################################################
 serial_mainport_disable:
 	anl	sys_props_save, #0xfd						; Clear flag
-serial_mainport_set_state:
-	mov	a, sys_props_save
-	mov	c, acc.1
+serial_mainport_disable_dont_flag:
 	clr	sfr_p4_80c562.7
-	jnc	serial_mainport_set_state_finish
-	setb	sfr_p4_80c562.7
-serial_mainport_set_state_finish:
 	ret
 
 
@@ -1975,10 +2170,91 @@ power_battery_ramcard_check_status_fail_finish:
 	ret
 
 
-; # power_event
+; # power_button_event
 ; #
-; #
+; # Handles the interrupt generated by the power button and RTC alarm
 ; ##########################################################################
+power_button_event:
+	clr	IE0								; Clear just in case
+
+	push	acc
+	mov	a, sys_props_save						; Check whether the system has just 'woken up'
+	jb 	acc.7, power_button_event_clear_flag
+
+	push	b
+	mov	stack_carry_bit, c
+	push	stack_carry
+	push	dph
+	push	dpl
+	push	psw
+	orl	psw, #0b00011000						; Select register bank 3
+
+	mov	a, #10								; 1445 Hz
+	mov	b, #5
+	lcall	piezo_beep							; Beep tone
+
+	lcall	serial_mainport_disable_dont_flag				; Shutdown serial
+	lcall	lcd_off_dont_flag						; Shutdown lcd
+
+	lcall	rtc_alarm_clear_active						; Clear alarm interrupt
+
+	orl	sys_props_save, #0x80						; Set the processor idle flag
+	setb	PX0								; Increase the priorty of external interrupt 0 (so we can interrupt again)
+	orl	pcon, #0x01							; Idle the processor
+	clr	PX0								; Reset the priority of external interrupt 0
+
+	lcall	rtc_alarm_clear_active						; Clear alarm interrupt
+
+	mov	a, #10								; 1445 Hz
+	mov	b, #5
+	lcall	piezo_beep							; Beep tone
+
+	clr	keyboard_key_down
+	lcall	keyboard_scan							; Check for reset or defaults reload
+	jnb	keyboard_key_down, power_button_event_restore_lcd
+	mov	a, keycode_raw
+power_button_event_keycheck_cancel:						; Reboot
+	cjne	a, #0x07, power_button_event_keycheck_delete
+	ljmp	paulmon2
+power_button_event_keycheck_delete:						; Reset system setup to defaults, then reboot
+	cjne	a, #0x2c, power_button_event_restore_lcd
+	lcall	system_config_restore_defaults
+	ljmp	paulmon2
+
+power_button_event_restore_lcd:
+	mov	a, lcd_props_save						; Check whether the LCD was previously on
+	jnb	acc.7, power_button_event_restore_serial
+	lcall	lcd_on
+power_button_event_restore_serial:
+	mov	a, sys_props_save						; Check whether the main serial port was enabled
+	jnb	acc.1, power_button_event_stack
+	lcall	serial_mainport_enable
+
+power_button_event_stack:
+	pop	psw
+	pop	dpl
+	pop	dph
+	pop	stack_carry
+	mov	c, stack_carry_bit
+	pop	b
+power_button_event_clear_flag:
+	anl	sys_props_save, #0x7f						; Clear the 'idle' flag
+	pop	acc
+	reti
+
+
+; # power_button_enable
+; #
+; # Enables external interrupt 0 (power button/ RTC alarm)
+; ##########################################################################
+power_button_enable:
+	setb	P3.2								; Ensure that INT0 pin can be used as input
+	setb	IT0								; Configure INT0 as falling edge triggered
+	setb	EX0								; Enable INT0 interrupt
+	clr	IE0								; Clear any existing INT0 request
+	setb	EA								; Enable interrupts
+	ret
+
 
 ; ###############################################################################################################
 ; #                                                    Misc functions
@@ -2048,16 +2324,16 @@ piezo_pwm_table:
 ; #   A - x50 milliseconds to delay
 ; ##########################################################################
 sdelay:
-	mov	r2, a
+	mov	tmp_sd2, a
 sdelay_50ms:									; 50ms delay
-	mov	r0, #120
-	mov	r1, #128
+	mov	tmp_sd0, #120
+	mov	tmp_sd1, #128
 sdelay1:
-	djnz	r0, sdelay1
+	djnz	tmp_sd0, sdelay1
 sdelay2:
-	mov	r0, #120
-	djnz	r1, sdelay1
-	djnz	r2, sdelay_50ms
+	mov	tmp_sd0, #120
+	djnz	tmp_sd1, sdelay1
+	djnz	tmp_sd2, sdelay_50ms
 	ret
 
 ; # terminal_esc_cursor_X
@@ -2189,7 +2465,7 @@ system_config_save_finish:
 ; ##########################################################################
 system_config_restore:
 	lcall	system_config_check						; See if system config data exists (Warm boot)
-	jc	system_config_restore_do
+	jc	system_config_restore_properties
 
 system_config_restore_from_rtc:							; Try restoring data from RTC memory
 	mov	r1, #sys_config_start						; Register pointer
@@ -2210,28 +2486,42 @@ system_config_restore_from_rtc_finish:
 	lcall	i2c_stop
 
 	lcall	system_config_check						; Has this provided a valid system config (Cold boot)
-	jc	system_config_restore_do					; Otherwise set system defaults
+	jc	system_config_restore_properties				; Otherwise set system defaults
 
+; # system_config_restore_defaults
+; #
+; # Set default values for the system configuration
+; ##########################################################################
+system_config_restore_defaults:
 	mov	current_year, #0x00						; Equivalent to y2k
 	lcall	serial_baudsave_set_default					; Default baud rate
 	mov	lcd_props_save, #0x14						; LCD properties defaults, backlight on, contrast=4
 	mov	sys_props_save, #0x03						; Key click enabled, Serial port enabled
-system_config_restore_do:
+; # system_config_restore_properties
+; #
+; # Applies current system config, also checks current_year is correct
+; ##########################################################################
+system_config_restore_properties:
 	mov	a, sys_props_save
-	mov	c, acc.0
-	mov	key_click, c							; Restore key click
-	lcall	serial_mainport_set_state					; Restore main serial port state
+	clr	key_click							; Disable key click
+	jnb	acc.0, system_config_restore_properties_serial			; Check whether key click is enable in the config
+	setb	key_click							; Restore key click
+system_config_restore_properties_serial:
+	lcall	serial_mainport_disable_dont_flag
+	jnb	acc.1, system_config_restore_properties_year
+	lcall	serial_mainport_enable						; Restore main serial port state
 
+system_config_restore_properties_year:
 	lcall	rtc_get_datetime						; Need to check that current_year is still valid
 	mov	a, r5
 	lcall	rtc_calc_year							; Calculate the year based on RTC data and the stored year
-	cjne	a, current_year, system_config_restore_do_year_update		; Check whether stored and calculated years are the same
-	sjmp	system_config_restore_do_finish					; If they are, just continue
-system_config_restore_do_year_update:
+	cjne	a, current_year, system_config_restore_properties_year_update	; Check whether stored and calculated years are the same
+	sjmp	system_config_restore_properties_finish				; If they are, just continue
+system_config_restore_properties_year_update:
 	mov	current_year, a							; Save updated year
 	lcall	system_config_save						; Save config (with updated year) back to RTC ram
 
-system_config_restore_do_finish:
+system_config_restore_properties_finish:
 	ret
 
 
@@ -2239,8 +2529,166 @@ system_config_restore_do_finish:
 ; #                                                     General data
 ; ###############################################################################################################
 
-.org    locat+0x900
+.org    locat+0xC00								; location defined so different keymaps can easily be selected
+; Keymap: 144 bytes
+keycode_2_character_table1:
+	.db	'A'	; A
+	.db	'E'	; E
+	.db	'K'	; K
+	.db	'Q'	; Q
+	.db	'W'	; W
+	.db	0x0b	; Up
+	.db	0x0a	; Down
+	.db	0x03	; Cancel (Ctrl-C)
+	.db	'B'	; B
+	.db	'F'	; F
+	.db	'L'	; L
+	.db	'R'	; R
+	.db	'X'	; X
+	.db	'7'	; 7
+	.db	'4'	; 4
+	.db	'1'	; 1
+	.db	'C'	; C
+	.db	'G'	; G
+	.db	'M'	; M
+	.db	'S'	; S
+	.db	'Y'	; Y
+	.db	'8'	; 8
+	.db	'5'	; 5
+	.db	'2'	; 2
+	.db	'D'	; D
+	.db	'H'	; H
+	.db	'N'	; N
+	.db	'T'	; T
+	.db	'Z'	; Z
+	.db	'9'	; 9
+	.db	'6'	; 6
+	.db	'3'	; 3
+	.db	0xFF	; Mode
+	.db	'I'	; I
+	.db	'O'	; O
+	.db	'U'	; U
+	.db	' '	; ' '
+	.db	'.'	; .
+	.db	'0'	; 0
+	.db	'-'	; -
+	.db	0xff	;
+	.db	'J'	; J
+	.db	'P'	; P
+	.db	'V'	; V
+	.db	0x7f	; Delete
+	.db	0x08	; Left
+	.db	0x09	; Right
+	.db	0x0d	; Enter
+keycode_2_character_table2:
+	.db	'a'	; A
+	.db	'e'	; E
+	.db	'k'	; K
+	.db	'q'	; Q
+	.db	'w'	; W
+	.db	0x0b	; Up
+	.db	0x0a	; Down
+	.db	0x04	; Cancel (Ctrl-D)
+	.db	'b'	; B
+	.db	'f'	; F
+	.db	'l'	; L
+	.db	'r'	; R
+	.db	'x'	; X
+	.db	'&'	; 7
+	.db	'$'	; 4
+	.db	'!'	; 1
+	.db	'c'	; C
+	.db	'g'	; G
+	.db	'm'	; M
+	.db	's'	; S
+	.db	'y'	; Y
+	.db	'*'	; 8
+	.db	'%'	; 5
+	.db	'"'	; 2
+	.db	'd'	; D
+	.db	'h'	; H
+	.db	'n'	; N
+	.db	't'	; T
+	.db	'z'	; Z
+	.db	'('	; 9
+	.db	'^'	; 6
+	.db	0x9C	; 3 (£)
+	.db	0xFF	; Mode
+	.db	'i'	; I
+	.db	'o'	; O
+	.db	'u'	; U
+	.db	' '	; ' '
+	.db	','	; .
+	.db	')'	; 0
+	.db	'_'	; -
+	.db	0xff	;
+	.db	'j'	; J
+	.db	'p'	; P
+	.db	'v'	; V
+	.db	0x7f	; Delete
+	.db	0x08	; Left
+	.db	0x09	; Right
+	.db	0x0d	; Enter
+keycode_2_character_table3:
+	.db	'='	; A
+	.db	'}'	; E
+	.db	'@'	; K
+	.db	'?'	; Q
+	.db	0x4F	; W (End, when preceded by a null character)
+	.db	0x0b	; Up
+	.db	0x0a	; Down
+	.db	0x18	; Cancel
+	.db	'+'	; B
+	.db	'['	; F
+	.db	0x27	; L (')
+	.db	'|'	; R
+	.db	0x1B	; X (Escape)
+	.db	0x41	; 7 (F7, when preceded by a null character)
+	.db	0x3E	; 4 (F4, when preceded by a null character)
+	.db	0x3B	; 1 (F1, when preceded by a null character)
+	.db	'/'	; C
+	.db	']'	; G
+	.db	'~'	; M
+	.db	0x5C	; S (\)
+	.db	0x49	; Y (PageUp, when preceded by a null character)
+	.db	0x42	; 8 (F8, when preceded by a null character)
+	.db	0x3F	; 5 (F5, when preceded by a null character)
+	.db	0x3C	; 2 (F2, when preceded by a null character)
+	.db	'{'	; D
+	.db	'?'	; H
+	.db	'#'	; N
+	.db	0xAC	; T (¬)
+	.db	0x51	; Z (PageDown, when preceded by a null character)
+	.db	0x43	; 9 (F9, when preceded by a null character)
+	.db	0x40	; 6 (F6, when preceded by a null character)
+	.db	0x3D	; 3 (F3, when preceded by a null character)
+	.db	0xFF	; Mode
+	.db	':'	; I
+	.db	'<'	; O
+	.db	'`'	; U
+	.db	' '	; ' '
+	.db	0x86	; . (F12, when preceded by a null character)
+	.db	0x44	; 0 (F10, when preceded by a null character)
+	.db	0x85	; - (F11, when preceded by a null character)
+	.db	0xff	;
+	.db	';'	; J
+	.db	'>'	; P
+	.db	0x47	; V (Home, when preceded by a null character)
+	.db	0x7f	; Delete
+	.db	0x08	; Left
+	.db	0x09	; Right
+	.db	0x0d	; Enter
 
+
+glyph_double_size_conversion_table:
+	.db	0x00, 0x03, 0x0c, 0x0f, 0x30, 0x33, 0x3c, 0x3f
+	.db	0xc0, 0xc3, 0xcc, 0xcf, 0xf0, 0xf3, 0xfc, 0xff
+
+power_2_conversion:
+	.db	0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80
+
+.org	locat+0xD00
+; ASCII font table: 768 bytes
 ascii_font_table:
 ascii_font_table_char_0:							; Null
 	.db	0x41, 0x41, 0x41, 0x41, 0x41, 0x00
@@ -2499,233 +2947,6 @@ ascii_font_table_char_126:							; '~'
 ascii_font_table_char_127:							; DEL
 	.db	0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x00
 
-glyph_double_size_conversion_table:
-	.db	0x00, 0x03, 0x0c, 0x0f, 0x30, 0x33, 0x3c, 0x3f
-	.db	0xc0, 0xc3, 0xcc, 0xcf, 0xf0, 0xf3, 0xfc, 0xff
-
-baud_rate_table:
-	.db	BAUD_19200
-	.db	BAUD_9600
-	.db	BAUD_4800
-	.db	BAUD_2400
-	.db	BAUD_1200
-	.db	BAUD_600
-	.db	BAUD_300
-	.db	BAUD_150
-
-.org	locat+0xCD0
-baud_rate_str_table:
-	.db	"19200", 0
-	.db	" 9600", 0
-	.db	" 4800", 0
-	.db	" 2400", 0
-	.db	" 1200", 0
-	.db	"  600", 0
-	.db	"  300", 0
-	.db	"  150", 0
-
-.org    locat+0xD00								; location defined so the different keymaps can easily be selected
-; Keymap
-keycode_2_character_table1:
-	.db	'A'	; A
-	.db	'E'	; E
-	.db	'K'	; K
-	.db	'Q'	; Q
-	.db	'W'	; W
-	.db	0x0b	; Up
-	.db	0x0a	; Down
-	.db	0x03	; Cancel (Ctrl-C)
-	.db	'B'	; B
-	.db	'F'	; F
-	.db	'L'	; L
-	.db	'R'	; R
-	.db	'X'	; X
-	.db	'7'	; 7
-	.db	'4'	; 4
-	.db	'1'	; 1
-	.db	'C'	; C
-	.db	'G'	; G
-	.db	'M'	; M
-	.db	'S'	; S
-	.db	'Y'	; Y
-	.db	'8'	; 8
-	.db	'5'	; 5
-	.db	'2'	; 2
-	.db	'D'	; D
-	.db	'H'	; H
-	.db	'N'	; N
-	.db	'T'	; T
-	.db	'Z'	; Z
-	.db	'9'	; 9
-	.db	'6'	; 6
-	.db	'3'	; 3
-	.db	0xFF	; Mode
-	.db	'I'	; I
-	.db	'O'	; O
-	.db	'U'	; U
-	.db	' '	; ' '
-	.db	'.'	; .
-	.db	'0'	; 0
-	.db	'-'	; -
-	.db	0xff	;
-	.db	'J'	; J
-	.db	'P'	; P
-	.db	'V'	; V
-	.db	0x7f	; Delete
-	.db	0x08	; Left
-	.db	0x09	; Right
-	.db	0x0d	; Enter
-keycode_2_character_table2:
-	.db	'a'	; A
-	.db	'e'	; E
-	.db	'k'	; K
-	.db	'q'	; Q
-	.db	'w'	; W
-	.db	0x0b	; Up
-	.db	0x0a	; Down
-	.db	0x04	; Cancel (Ctrl-D)
-	.db	'b'	; B
-	.db	'f'	; F
-	.db	'l'	; L
-	.db	'r'	; R
-	.db	'x'	; X
-	.db	'&'	; 7
-	.db	'$'	; 4
-	.db	'!'	; 1
-	.db	'c'	; C
-	.db	'g'	; G
-	.db	'm'	; M
-	.db	's'	; S
-	.db	'y'	; Y
-	.db	'*'	; 8
-	.db	'%'	; 5
-	.db	'"'	; 2
-	.db	'd'	; D
-	.db	'h'	; H
-	.db	'n'	; N
-	.db	't'	; T
-	.db	'z'	; Z
-	.db	'('	; 9
-	.db	'^'	; 6
-	.db	0x9C	; 3 (£)
-	.db	0xFF	; Mode
-	.db	'i'	; I
-	.db	'o'	; O
-	.db	'u'	; U
-	.db	' '	; ' '
-	.db	','	; .
-	.db	')'	; 0
-	.db	'_'	; -
-	.db	0xff	;
-	.db	'j'	; J
-	.db	'p'	; P
-	.db	'v'	; V
-	.db	0x7f	; Delete
-	.db	0x08	; Left
-	.db	0x09	; Right
-	.db	0x0d	; Enter
-keycode_2_character_table3:
-	.db	'='	; A
-	.db	'}'	; E
-	.db	'@'	; K
-	.db	'?'	; Q
-	.db	0x4F	; W (End, when preceded by a null character)
-	.db	0x0b	; Up
-	.db	0x0a	; Down
-	.db	0x18	; Cancel
-	.db	'+'	; B
-	.db	'['	; F
-	.db	0x27	; L (')
-	.db	'|'	; R
-	.db	0x1B	; X (Escape)
-	.db	0x41	; 7 (F7, when preceded by a null character)
-	.db	0x3E	; 4 (F4, when preceded by a null character)
-	.db	0x3B	; 1 (F1, when preceded by a null character)
-	.db	'/'	; C
-	.db	']'	; G
-	.db	'~'	; M
-	.db	0x5C	; S (\)
-	.db	0x49	; Y (PageUp, when preceded by a null character)
-	.db	0x42	; 8 (F8, when preceded by a null character)
-	.db	0x3F	; 5 (F5, when preceded by a null character)
-	.db	0x3C	; 2 (F2, when preceded by a null character)
-	.db	'{'	; D
-	.db	'?'	; H
-	.db	'#'	; N
-	.db	0xAC	; T (¬)
-	.db	0x51	; Z (PageDown, when preceded by a null character)
-	.db	0x43	; 9 (F9, when preceded by a null character)
-	.db	0x40	; 6 (F6, when preceded by a null character)
-	.db	0x3D	; 3 (F3, when preceded by a null character)
-	.db	0xFF	; Mode
-	.db	':'	; I
-	.db	'<'	; O
-	.db	'`'	; U
-	.db	' '	; ' '
-	.db	0x86	; . (F12, when preceded by a null character)
-	.db	0x44	; 0 (F10, when preceded by a null character)
-	.db	0x85	; - (F11, when preceded by a null character)
-	.db	0xff	;
-	.db	';'	; J
-	.db	'>'	; P
-	.db	0x47	; V (Home, when preceded by a null character)
-	.db	0x7f	; Delete
-	.db	0x08	; Left
-	.db	0x09	; Right
-	.db	0x0d	; Enter
-
-
-; ###############################################################################################################
-; #                                                     OysterLib ISVs
-; ###############################################################################################################
-
-; Startup (not used obviously)
-.org    locat+0x1000
-
-; External interrupt 0 (INT0)
-.org    locat+0x1003
-
-; Timer 0 overflow
-.org    locat+0x100B
-
-; External interrupt 1 (INT1)
-.org    locat+0x1013
-
-; Timer 1 overflow
-.org    locat+0x101B
-
-; SIO0 (UART)
-.org    locat+0x1023
-
-; SIO1 (I2C, doesn't exist)
-.org    locat+0x102B
-
-; Timer 2 capture 0
-.org    locat+0x1033
-
-; Timer 2 capture 1
-.org    locat+0x103B
-
-; Timer 2 capture 2
-.org    locat+0x1043
-
-; Timer 2 capture 3
-.org    locat+0x104B
-
-; ADC completion
-.org    locat+0x1053
-
-; Timer 2 compare 0
-.org    locat+0x105B
-
-; Timer 2 compare 1
-.org    locat+0x1063
-
-; Timer 2 compare 2
-.org    locat+0x106B
-
-; Timer 2 overflow
-.org    locat+0x1073
 
 ; ###############################################################################################################
 ; #                                                       Commands
@@ -2737,7 +2958,7 @@ keycode_2_character_table3:
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0x1100
+.org    locat+0x1000
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     253,',',0,0		; id (253=startup)
 .db     0,0,0,0			; prompt code vector
@@ -2747,7 +2968,7 @@ keycode_2_character_table3:
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "System setup",0
-.org    locat+0x1140		; executable code begins here
+.org    locat+0x1040		; executable code begins here
 
 system_setup:
 	lcall	newline
@@ -2887,7 +3108,7 @@ system_setup_continue:
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0x1300
+.org    locat+0x1200
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
 .db     249,',',0,0		; id (249=init)
 .db     0,0,0,0			; prompt code vector
@@ -2897,7 +3118,7 @@ system_setup_continue:
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
 .db     "System init",0
-.org    locat+0x1340		; executable code begins here
+.org    locat+0x1240		; executable code begins here
 
 system_init:
 ; General system config
@@ -2911,6 +3132,7 @@ system_init:
 	setb	p1.6								; SCL
 	setb	p1.7								; SDA
 
+	lcall	power_button_enable						; Enable the power button
 	lcall	system_config_restore						; Either restore an existing config, otherwise set defaults
 
 system_init_keyboard:
@@ -2985,11 +3207,11 @@ system_init_mode_select_oyster:
 
 ;---------------------------------------------------------;
 ;                                                         ;
-;                          Setup                          ;
+;                       Sys. Config                       ;
 ;                                                         ;
 ;---------------------------------------------------------;
 
-.org    locat+0x1400
+.org    locat+0x1300
 .db     0xA5,0xE5,0xE0,0xA5     ; signiture bytes
 .db     254,'!',0,0             ; id (254=cmd)
 .db     0,0,0,0                 ; prompt code vector
@@ -2998,8 +3220,8 @@ system_init_mode_select_oyster:
 .db     0,0,0,0                 ; reserved
 .db     0,0,0,0                 ; user defined
 .db     255,255,255,255         ; length and checksum (255=unused)
-.db     "Setup",0
-.org    locat+0x1440            ; executable code begins here
+.db     "System config",0
+.org    locat+0x1340            ; executable code begins here
 
 
 ; # Menu
@@ -3123,6 +3345,7 @@ setup_screenkey:
 	lcall	lcd_clear_screen
 	mov	tmp_var, #0
 
+setup_screenkey_loop:
 	setb	lcd_glyph_doublewidth
 	setb	lcd_glyph_doubleheight
 	setb	lcd_glyph_invert
@@ -3605,7 +3828,7 @@ setup_datetime_updaterb2:
 	mov	a, tmp_var
 	jb	acc.5, setup_datetime_updaterb2_date				; Update date digit
 	jnb	acc.4, setup_datetime_updaterb2_no_match
-	ajmp	setup_datetime_updaterb2_time					; Update time digit
+	ljmp	setup_datetime_updaterb2_time					; Update time digit
 setup_datetime_updaterb2_no_match:
 	setb	c								; Set error (we shouldn't get here)
 	ret
@@ -3617,7 +3840,7 @@ setup_datetime_updaterb2_date:
 	jb	acc.0, setup_datetime_updaterb2_date_day
 	jb	acc.1, setup_datetime_updaterb2_date_month
 	jb	acc.2, setup_datetime_updaterb2_date_year
-	ajmp	setup_datetime_updaterb2_error					; Shouldn't ever get here
+	ljmp	setup_datetime_updaterb2_error					; Shouldn't ever get here
 setup_datetime_updaterb2_date_day:
 	jb	acc.3, setup_datetime_updaterb2_date_day_d2
 setup_datetime_updaterb2_date_day_d1:						; Valid: 0-3
@@ -3825,6 +4048,7 @@ setup_serial_loop_print_mpstate:
 setup_serial_loop_baudrate_identify:
 	inc	tmp_var
 	mov	a, tmp_var							; Get current offset
+	jb	acc.3, setup_serial_loop_baudrate_identify_fail			; Check whether we've failed to match
 	movc	a, @a+dptr
 	subb	a, baud_save+3							; Subtract current baud rate to test if we have a match
 	jnz	setup_serial_loop_baudrate_identify
@@ -3835,6 +4059,10 @@ setup_serial_loop_baudrate_identify:
 	add	a, dpl								; Add calculated offset to pointer
 	mov	dpl, a
 	lcall	lcd_pstr
+	sjmp	setup_serial_keyboard_scan
+setup_serial_loop_baudrate_identify_fail:
+	mov	a, baud_save+3							; If we failed to match, print the reload instead
+	lcall	phex
 
 setup_serial_keyboard_scan:
 	lcall	keyboard_scan
@@ -3853,17 +4081,15 @@ setup_serial_keyboard_scan_b_set_baud:
 	mov	dptr, #baud_rate_table
 	movc	a, @a+dptr							; Get new baud rate
 	lcall	serial_baudsave_set_reload					; Set new baud rate
-	sjmp	setup_serial_loop
+	ajmp	setup_serial_loop
 setup_serial_keyboard_scan_m:
 	cjne	a, #0x12, setup_serial_keyboard_scan_cancel
 	mov	a, sys_props_save						; Get saved bits
-	mov	c, acc.1							; Get the bit we're interested in
-	cpl	c								; Invert it
-	anl	sys_props_save, #0xfd						; Clear the current setting
-	jnc	setup_serial_keyboard_scan_m_set_mpstate
-	orl	sys_props_save, #0x02						; Set bit
-setup_serial_keyboard_scan_m_set_mpstate:
-	lcall	serial_mainport_set_state
+	jnb	acc.1, setup_serial_keyboard_scan_m_enable			; This will toggle the setting
+	lcall	serial_mainport_disable
+	ljmp	setup_serial_loop
+setup_serial_keyboard_scan_m_enable:
+	lcall	serial_mainport_enable
 	ljmp	setup_serial_loop
 setup_serial_keyboard_scan_cancel:
 	cjne	a, #0x07, setup_serial_keyboard_scan_other
@@ -3889,7 +4115,7 @@ setup_power_loop:
 	clr	lcd_glyph_doubleheight
 	clr	lcd_glyph_invert
 
-	mov	lcd_start_position, #0x64					; 4th row, 5th column
+	mov	lcd_start_position, #0x66					; 4th row, 7th column
 	mov	dptr, #str_setuppwr_cstatus
 	lcall	lcd_pstr
 	lcall	power_battery_main_check_charging
@@ -3899,7 +4125,7 @@ setup_power_loop:
 setup_power_loop_print_cstatus:
 	lcall	lcd_pstr
 
-	mov	lcd_start_position, #0x85					; 4th row, 6th column
+	mov	lcd_start_position, #0x87					; 5th row, 8th column
 	mov	dptr, #str_backup
 	lcall	lcd_pstr
 	mov	dptr, #str_battery
@@ -3913,9 +4139,11 @@ setup_power_loop_print_bbattery:
 
 	lcall	memory_ramcard_present						; Check if ram card is present
 	jnc	setup_power_keyboard_scan
-	mov	lcd_start_position, #0x81					; 4th row, 2nd column
+	mov	lcd_start_position, #0xa2					; 6th row, 2nd column
 	mov	dptr, #str_memory_card
 	lcall	lcd_pstr
+	mov	a, #' '
+	lcall	oyster_cout
 	mov	dptr, #str_battery
 	lcall	lcd_pstr
 	lcall	power_battery_ramcard_check_status_warn
@@ -3990,4 +4218,29 @@ str_init_header:	.db	" PAULMON ", 0
 str_init_select:	.db	"Select console:", 0
 str_init_oyster:	.db	"       O - Oyster Terminal", 0
 str_init_serial:	.db	"       S - Serial", 0
+
+baud_rate_table:
+	.db	BAUD_19200
+	.db	BAUD_9600
+	.db	BAUD_4800
+	.db	BAUD_2400
+	.db	BAUD_1200
+	.db	BAUD_600
+	.db	BAUD_300
+	.db	BAUD_150
+
+.org	locat+0x1FD0								; location defined so different strings can easily be selected
+baud_rate_str_table:
+	.db	"19200", 0
+	.db	" 9600", 0
+	.db	" 4800", 0
+	.db	" 2400", 0
+	.db	" 1200", 0
+	.db	"  600", 0
+	.db	"  300", 0
+	.db	"  150", 0
+
+
+; Defined so there's an error if the build exceeds 8k
+.org	locat+0x2000
 
