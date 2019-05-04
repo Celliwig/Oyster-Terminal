@@ -39,94 +39,97 @@
 ; OysterLib functions
 ; ##########################################################################
 .equ	console_lib, oysterlib+0x00
-.equ	math_lib, oysterlib+0x06
-.equ	memory_lib, oysterlib+0x0a
-.equ	i2c_lib, oysterlib+0x16
-.equ	rtc_lib, oysterlib+0x2c
-.equ	keyboard_lib, oysterlib+0x3a
-.equ	lcd_lib, oysterlib+0x40
-.equ	serial_lib, oysterlib+0x58
-.equ	power_lib, oysterlib+0x68
-.equ	misc_lib, oysterlib+0x70
+.equ	math_lib, oysterlib+0x09
+.equ	memory_lib, oysterlib+0x12
+.equ	i2c_lib, oysterlib+0x24
+.equ	rtc_lib, oysterlib+0x45
+.equ	keyboard_lib, oysterlib+0x5a
+.equ	lcd_lib, oysterlib+0x63
+.equ	serial_lib, oysterlib+0x8d
+.equ	power_lib, oysterlib+0xa5
+.equ	misc_lib, oysterlib+0xb1
 
 ; console lib
 .equ	oysterlib_cout, console_lib+0x00
-.equ	oysterlib_newline, console_lib+0x02
-.equ	oysterlib_cin, console_lib+0x04
+.equ	oysterlib_newline, console_lib+0x03
+.equ	oysterlib_cin, console_lib+0x06
 
 ; math lib
 .equ	packed_bcd_to_hex, math_lib+0x00
-.equ	hex_to_packed_bcd, math_lib+0x02
+.equ	hex_to_packed_bcd, math_lib+0x03
+.equ	power_of_2, math_lib+0x06
 
 ; memory lib
 .equ	memory_set_page_psen, memory_lib+0x00
-.equ	memory_set_page_rdwr, memory_lib+0x02
-.equ	memory_set_mode_psen, memory_lib+0x04
-.equ	memory_set_mode_rdwr, memory_lib+0x06
-.equ	memory_ramcard_present, memory_lib+0x08
-.equ	memory_ramcard_write_protect, memory_lib+0x0a
+.equ	memory_set_page_rdwr, memory_lib+0x03
+.equ	memory_set_mode_psen, memory_lib+0x06
+.equ	memory_set_mode_rdwr, memory_lib+0x09
+.equ	memory_ramcard_present, memory_lib+0x0c
+.equ	memory_ramcard_write_protect, memory_lib+0x0f
 
 ; i2c lib
 .equ	i2c_start, i2c_lib+0x00
-.equ	i2c_stop_clock_stretch_check, i2c_lib+0x02
-.equ	i2c_stop, i2c_lib+0x04
-.equ	i2c_write_byte, i2c_lib+0x06
-.equ	i2c_ack_check, i2c_lib+0x08
-.equ	i2c_write_byte_to_addr, i2c_lib+0x0a
-.equ	i2c_write_byte_with_ack_check, i2c_lib+0x0c
-.equ	i2c_read_byte, i2c_lib+0x0e
-.equ	i2c_master_read_ack, i2c_lib+0x10
-.equ	i2c_read_byte_from_addr, i2c_lib+0x12
-.equ	i2c_read_device_register, i2c_lib+0x14
+.equ	i2c_stop_clock_stretch_check, i2c_lib+0x03
+.equ	i2c_stop, i2c_lib+0x06
+.equ	i2c_write_byte, i2c_lib+0x09
+.equ	i2c_ack_check, i2c_lib+0x0c
+.equ	i2c_write_byte_to_addr, i2c_lib+0x0f
+.equ	i2c_write_byte_with_ack_check, i2c_lib+0x12
+.equ	i2c_read_byte, i2c_lib+0x15
+.equ	i2c_master_read_ack, i2c_lib+0x18
+.equ	i2c_read_byte_from_addr, i2c_lib+0x1b
+.equ	i2c_read_device_register, i2c_lib+0x1e
 
 ; rtc lib
 .equ	rtc_get_config, rtc_lib+0x00
-.equ	rtc_get_alarm_config, rtc_lib+0x02
-.equ	rtc_set_config, rtc_lib+0x04
-.equ	rtc_set_alarm_config, rtc_lib+0x06
-.equ	rtc_init, rtc_lib+0x08
-.equ	rtc_get_datetime, rtc_lib+0x0a
-.equ	rtc_set_datetime, rtc_lib+0x0c
+.equ	rtc_get_alarm_config, rtc_lib+0x03
+.equ	rtc_set_config, rtc_lib+0x06
+.equ	rtc_set_alarm_config, rtc_lib+0x09
+.equ	rtc_init, rtc_lib+0x0c
+.equ	rtc_get_datetime, rtc_lib+0x0f
+.equ	rtc_set_datetime, rtc_lib+0x12
 
 ; keyboard lib
 .equ	keyboard_scan, keyboard_lib+0x00
-.equ	keyboard_reset, keyboard_lib+0x02
-.equ	keyboard_wait_for_keypress, keyboard_lib+0x04
+.equ	keyboard_reset, keyboard_lib+0x03
+.equ	keyboard_wait_for_keypress, keyboard_lib+0x06
 
 ; lcd lib
 .equ	lcd_off, lcd_lib+0x00
-.equ	lcd_init, lcd_lib+0x02
-.equ	lcd_clear_screen, lcd_lib+0x04
-.equ	lcd_clear_screen_from_position, lcd_lib+0x06
-.equ	lcd_new_line_scroll_and_clear, lcd_lib+0x08
-.equ	lcd_print_character, lcd_lib+0x0a
-.equ	lcd_set_glyph_position, lcd_lib+0x0c
-.equ	lcd_pstr, lcd_lib+0x0e
-.equ	lcd_set_backlight_on, lcd_lib+0x10
-.equ	lcd_set_backlight_off, lcd_lib+0x12
-.equ	lcd_set_contrast_inc, lcd_lib+0x14
-.equ	lcd_set_contrast_dec, lcd_lib+0x16
+.equ	lcd_on, lcd_lib+0x03
+.equ	lcd_init, lcd_lib+0x06
+.equ	lcd_clear_screen, lcd_lib+0x09
+.equ	lcd_clear_screen_from_position, lcd_lib+0x0c
+.equ	lcd_new_line_scroll_and_clear, lcd_lib+0x0f
+.equ	lcd_print_character, lcd_lib+0x12
+.equ	lcd_set_glyph_position, lcd_lib+0x15
+.equ	lcd_plot_point, lcd_lib+0x18
+.equ	lcd_pstr, lcd_lib+0x1b
+.equ	lcd_set_backlight_on, lcd_lib+0x1e
+.equ	lcd_set_backlight_off, lcd_lib+0x21
+.equ	lcd_set_contrast_inc, lcd_lib+0x24
+.equ	lcd_set_contrast_dec, lcd_lib+0x27
 
 ; serial lib
 .equ	serial_mainport_enable, serial_lib+0x00
-.equ	serial_mainport_disable, serial_lib+0x02
-.equ	serial_rts_set, serial_lib+0x04
-.equ	serial_rts_unset, serial_lib+0x06
-.equ	serial_cts_check, serial_lib+0x08
-.equ	serial_baudsave_check, serial_lib+0x0a
-.equ	serial_baudsave_set_reload, serial_lib+0x0c
-.equ	serial_baudsave_set, serial_lib+0x0e
+.equ	serial_mainport_disable, serial_lib+0x03
+.equ	serial_rts_set, serial_lib+0x06
+.equ	serial_rts_unset, serial_lib+0x09
+.equ	serial_cts_check, serial_lib+0x0c
+.equ	serial_baudsave_check, serial_lib+0x0f
+.equ	serial_baudsave_set_reload, serial_lib+0x12
+.equ	serial_baudsave_set, serial_lib+0x15
 
 ; power lib
 .equ	power_battery_main_check_charging, power_lib+0x00
-.equ	power_battery_backup_check_status, power_lib+0x02
-.equ	power_battery_ramcard_check_status_warn, power_lib+0x04
-.equ	power_battery_ramcard_check_status_fail, power_lib+0x06
+.equ	power_battery_backup_check_status, power_lib+0x03
+.equ	power_battery_ramcard_check_status_warn, power_lib+0x06
+.equ	power_battery_ramcard_check_status_fail, power_lib+0x09
 
 ; misc lib
 .equ	piezo_beep, misc_lib+0x00
-.equ	piezo_pwm_sound, misc_lib+0x02
-.equ	sdelay, misc_lib+0x04
+.equ	piezo_pwm_sound, misc_lib+0x03
+.equ	sdelay, misc_lib+0x06
 
 ; SFR definitions
 ; ##########################################################################
@@ -652,6 +655,90 @@ key_2_serial_loop:
 	clr	keyboard_new_char
 	lcall	oysterlib_newline
 	sjmp	key_2_serial_loop
+
+
+;---------------------------------------------------------;
+;                                                         ;
+;                 Plot points to display                  ;
+;                                                         ;
+;---------------------------------------------------------;
+
+.org    locat+0x600
+.db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
+.db     254,'*',0,0		; id (254=cmd)
+.db     0,0,0,0			; prompt code vector
+.db     0,0,0,0			; reserved
+.db     0,0,0,0			; reserved
+.db     0,0,0,0			; reserved
+.db     0,0,0,0			; user defined
+.db     255,255,255,255		; length and checksum (255=unused)
+.db     "Plot 2 LCD",0
+.org    locat+0x640		; executable code begins here
+
+
+plot_2_lcd:
+	lcall	oysterlib_newline
+	lcall	lcd_clear_screen
+
+plot_2_lcd_loop:
+	mov	a, #0x40
+	mov	b, #0x22
+	lcall	lcd_plot_point
+	mov	a, #0x41
+	mov	b, #0x22
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x22
+	lcall	lcd_plot_point
+	mov	a, #0x43
+	mov	b, #0x22
+	lcall	lcd_plot_point
+	mov	a, #0x44
+	mov	b, #0x22
+	lcall	lcd_plot_point
+
+
+	mov	a, #0x42
+	mov	b, #0x20
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x21
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x22
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x23
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x24
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x25
+	lcall	lcd_plot_point
+
+	mov	a, #0x42
+	mov	b, #0x18
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x19
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x1a
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x1b
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x1c
+	lcall	lcd_plot_point
+	mov	a, #0x42
+	mov	b, #0x1d
+	lcall	lcd_plot_point
+
+;	sjmp	plot_2_lcd_loop
+
+	ret
 
 
 .org	locat+0xe00
