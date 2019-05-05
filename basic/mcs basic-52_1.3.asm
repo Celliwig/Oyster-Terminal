@@ -8335,7 +8335,7 @@ HOUTLO:
 ;
 
 serial_set_baud:
-	lcall	paulmon_check_4_baud				; Check whether a baud rate determined by PaulMON has been stored
+	lcall	serial_baudsave_check				; Check whether a baud rate determined by PaulMON has been stored
 	jnc	serial_set_baud_default
 	mov	TH1, baud_save+3				; Retrieve the baud rate determined by PaulMON
 	ret
