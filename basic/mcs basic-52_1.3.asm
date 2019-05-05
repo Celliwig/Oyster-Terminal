@@ -244,82 +244,107 @@
 
 ; PaulMON misc.
 ; ##########################################################################
-.equ	baud_save, 0x68				; save baud for warm boot, 4 bytes
+.equ	baud_save, 0x68						; save baud for warm boot, 4 bytes
+
+; define the storage location
+; ##########################################################################
+.equ	paulmon2, 0x0000					; location where paulmon2
+.equ	oysterlib, paulmon2+0x1080				; location of oysterlib
 
 ; OysterLib functions
 ; ##########################################################################
-.equ	console_lib, 0x1000
-.equ	math_lib, 0x1006
-.equ	memory_lib, 0x100A
-.equ	i2c_lib, 0x1014
-.equ	rtc_lib, 0x102A
-.equ	keyboard_lib, 0x1038
-.equ	lcd_lib, 0x103E
-.equ	misc_lib, 0x1056
+.equ	console_lib, oysterlib+0x00
+.equ	math_lib, oysterlib+0x09
+.equ	memory_lib, oysterlib+0x12
+.equ	i2c_lib, oysterlib+0x24
+.equ	rtc_lib, oysterlib+0x45
+.equ	keyboard_lib, oysterlib+0x5a
+.equ	lcd_lib, oysterlib+0x63
+.equ	serial_lib, oysterlib+0x8d
+.equ	power_lib, oysterlib+0xa5
+.equ	misc_lib, oysterlib+0xb1
 
 ; console lib
 .equ	oysterlib_cout, console_lib+0x00
-.equ	oysterlib_newline, console_lib+0x02
-.equ	oysterlib_cin, console_lib+0x04
+.equ	oysterlib_newline, console_lib+0x03
+.equ	oysterlib_cin, console_lib+0x06
 
 ; math lib
 .equ	packed_bcd_to_hex, math_lib+0x00
-.equ	hex_to_packed_bcd, math_lib+0x02
+.equ	hex_to_packed_bcd, math_lib+0x03
+.equ	power_of_2, math_lib+0x06
 
 ; memory lib
 .equ	memory_set_page_psen, memory_lib+0x00
-.equ	memory_set_page_rdwr, memory_lib+0x02
-.equ	memory_set_mode_psen, memory_lib+0x04
-.equ	memory_set_mode_rdwr, memory_lib+0x06
-.equ	memory_ramcard_present, memory_lib+0x08
+.equ	memory_set_page_rdwr, memory_lib+0x03
+.equ	memory_set_mode_psen, memory_lib+0x06
+.equ	memory_set_mode_rdwr, memory_lib+0x09
+.equ	memory_ramcard_present, memory_lib+0x0c
+.equ	memory_ramcard_write_protect, memory_lib+0x0f
 
 ; i2c lib
 .equ	i2c_start, i2c_lib+0x00
-.equ	i2c_stop_clock_stretch_check, i2c_lib+0x02
-.equ	i2c_stop, i2c_lib+0x04
-.equ	i2c_write_byte, i2c_lib+0x06
-.equ	i2c_ack_check, i2c_lib+0x08
-.equ	i2c_write_byte_to_addr, i2c_lib+0x0a
-.equ	i2c_write_byte_with_ack_check, i2c_lib+0x0c
-.equ	i2c_read_byte, i2c_lib+0x0e
-.equ	i2c_master_read_ack, i2c_lib+0x10
-.equ	i2c_read_byte_from_addr, i2c_lib+0x12
-.equ	i2c_read_device_register, i2c_lib+0x14
+.equ	i2c_stop_clock_stretch_check, i2c_lib+0x03
+.equ	i2c_stop, i2c_lib+0x06
+.equ	i2c_write_byte, i2c_lib+0x09
+.equ	i2c_ack_check, i2c_lib+0x0c
+.equ	i2c_write_byte_to_addr, i2c_lib+0x0f
+.equ	i2c_write_byte_with_ack_check, i2c_lib+0x12
+.equ	i2c_read_byte, i2c_lib+0x15
+.equ	i2c_master_read_ack, i2c_lib+0x18
+.equ	i2c_read_byte_from_addr, i2c_lib+0x1b
+.equ	i2c_read_device_register, i2c_lib+0x1e
 
 ; rtc lib
 .equ	rtc_get_config, rtc_lib+0x00
-.equ	rtc_get_alarm_config, rtc_lib+0x02
-.equ	rtc_set_config, rtc_lib+0x04
-.equ	rtc_set_alarm_config, rtc_lib+0x06
-.equ	rtc_init, rtc_lib+0x08
-.equ	rtc_get_datetime, rtc_lib+0x0a
-.equ	rtc_set_datetime, rtc_lib+0x0c
+.equ	rtc_get_alarm_config, rtc_lib+0x03
+.equ	rtc_set_config, rtc_lib+0x06
+.equ	rtc_set_alarm_config, rtc_lib+0x09
+.equ	rtc_init, rtc_lib+0x0c
+.equ	rtc_get_datetime, rtc_lib+0x0f
+.equ	rtc_set_datetime, rtc_lib+0x12
 
 ; keyboard lib
 .equ	keyboard_scan, keyboard_lib+0x00
-.equ	keyboard_reset, keyboard_lib+0x02
-.equ	keyboard_wait_for_keypress, keyboard_lib+0x04
+.equ	keyboard_reset, keyboard_lib+0x03
+.equ	keyboard_wait_for_keypress, keyboard_lib+0x06
 
 ; lcd lib
 .equ	lcd_off, lcd_lib+0x00
-.equ	lcd_init, lcd_lib+0x02
-.equ	lcd_clear_screen, lcd_lib+0x04
-.equ	lcd_clear_screen_from_position, lcd_lib+0x06
-.equ	lcd_new_line_scroll_and_clear, lcd_lib+0x08
-.equ	lcd_print_character, lcd_lib+0x0a
-.equ	lcd_set_glyph_position, lcd_lib+0x0c
-.equ	lcd_pstr, lcd_lib+0x0e
-.equ	lcd_set_backlight_on, lcd_lib+0x10
-.equ	lcd_set_backlight_off, lcd_lib+0x12
-.equ	lcd_set_contrast_inc, lcd_lib+0x14
-.equ	lcd_set_contrast_dec, lcd_lib+0x16
+.equ	lcd_on, lcd_lib+0x03
+.equ	lcd_init, lcd_lib+0x06
+.equ	lcd_clear_screen, lcd_lib+0x09
+.equ	lcd_clear_screen_from_position, lcd_lib+0x0c
+.equ	lcd_new_line_scroll_and_clear, lcd_lib+0x0f
+.equ	lcd_print_character, lcd_lib+0x12
+.equ	lcd_set_glyph_position, lcd_lib+0x15
+.equ	lcd_plot_point, lcd_lib+0x18
+.equ	lcd_pstr, lcd_lib+0x1b
+.equ	lcd_set_backlight_on, lcd_lib+0x1e
+.equ	lcd_set_backlight_off, lcd_lib+0x21
+.equ	lcd_set_contrast_inc, lcd_lib+0x24
+.equ	lcd_set_contrast_dec, lcd_lib+0x27
+
+; serial lib
+.equ	serial_mainport_enable, serial_lib+0x00
+.equ	serial_mainport_disable, serial_lib+0x03
+.equ	serial_rts_set, serial_lib+0x06
+.equ	serial_rts_unset, serial_lib+0x09
+.equ	serial_cts_check, serial_lib+0x0c
+.equ	serial_baudsave_check, serial_lib+0x0f
+.equ	serial_baudsave_set_reload, serial_lib+0x12
+.equ	serial_baudsave_set, serial_lib+0x15
+
+; power lib
+.equ	power_battery_main_check_charging, power_lib+0x00
+.equ	power_battery_backup_check_status, power_lib+0x03
+.equ	power_battery_ramcard_check_status_warn, power_lib+0x06
+.equ	power_battery_ramcard_check_status_fail, power_lib+0x09
 
 ; misc lib
 .equ	piezo_beep, misc_lib+0x00
-.equ	piezo_pwm_sound, misc_lib+0x02
-.equ	sdelay, misc_lib+0x04
-.equ	battery_check_status, misc_lib+0x06
-
+.equ	piezo_pwm_sound, misc_lib+0x03
+.equ	sdelay, misc_lib+0x06
 
 ; RAM definitions
 ; ##########################################################################
@@ -348,10 +373,25 @@
 .equ	mem_page_psen, 0x58					; Store for the currently selected PSEN page
 .equ	mem_page_rdwr, 0x59					; Store for the currently selected RDWR page
 .equ	keymap_offset, 0x5A					; Used to select the correct keymap
+.equ	tmp_var, 0x60
+.equ	current_year, 0x67					; The current year as an offset from 2000 (needed as the RTC only stores 2 bits for the year)
+; 0x68-0x6B used by baud_save
+.equ	lcd_props_save, 0x6C					; Used to retain the backlight/contrast settings when the screen is off
+.equ	sys_props_save, 0x6D					; System config
+								;	0 - key_click
+								;	1 - Main serial port status
+.equ	sys_cfg_chksum_inv, 0x6E				; Checksum (inverted) of the system configuration
+.equ	sys_cfg_checksum, 0x6F					; Checksum of the system configuration
+
+; Definitions for the system config save/restore rountines
+; So there is only one place to update
+.equ	sys_config_start, current_year
+.equ	sys_config_end, sys_props_save
 
 ; Bit RAM definitions
 ; ##########################################################################
 .flag	use_oysterlib, 0x20.0
+.flag	key_click, 0x20.1
 .flag	mem_mode_psen_ram, 0x20.2				; This bit is not randomly chosen, see memory command
 .flag	mem_mode_psen_ram_card, 0x20.3				; This bit is not randomly chosen, see memory command
 .flag	tmp_bit, 0x20.4
@@ -367,6 +407,7 @@
 .flag	lcd_glyph_use_ram, 0x21.5
 .flag	keyboard_key_down, 0x21.6
 .flag	keyboard_new_char, 0x21.7
+
 
 ; ###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###
 ; ###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###OYSTERLIB###
