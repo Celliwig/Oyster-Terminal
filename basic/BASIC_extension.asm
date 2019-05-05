@@ -56,9 +56,9 @@ system_startup_extended:
 	mov	sfr_pwm1_80c562, #0x00				; Set so it only takes one instruction to toggle the PWM output
 	mov	sfr_pwmp_80c562, #0xFF
 
-	acall	paulmon_check_4_baud				; Check whether PaulMON was used to bootstrap BASIC
+	lcall	serial_baudsave_check				; Check whether PaulMON was used to bootstrap BASIC
 	mov	a, #0xFF					; Set A to indicate registers not initialised
-	jnc	system_startup_extended_finish
+	jnc	system_startup_extended_set_console
 
 ; Initialise internal registers (ignore oysterlib/paulmon locations)
 ; Init stack_top to 0x1F
@@ -75,31 +75,16 @@ system_startup_init_registers_alt2:
 	inc	r0						; Increment register pointer
 	cjne	r0, #0x4D, system_startup_init_registers_alt2	; Keep looping until 0x4D
 
+system_startup_extended_set_console:
+	clr	ucon_in						; Make sure the user console driver flags are clear
+	clr	ucon_out
+	jnb	use_oysterlib, system_startup_extended_finish	; Check whether to use hardware instead of serial
+	setb	ucon_in						; Force the use of the user console drivers instead of serial
+	setb	ucon_out
+
 system_startup_extended_finish:
 	push	dpl						; Restore return address
 	push	dph
-	ret
-
-; paulmon_check_4_baud
-;
-; Check whether PaulMON was loaded first by looking for the baud bytes
-; Out:
-;   Carry - set if baud bytes exist
-;*****************************************************************************
-paulmon_check_4_baud:
-	clr	c
-	mov	a, baud_save+3	 				; Get the current baud rate, if it exists
-        xrl	baud_save+2, #01010101b
-	cjne	a, baud_save+2, paulmon_check_4_baud_finish
-        xrl	baud_save+2, #01010101b				; Redo XOR
-	xrl	baud_save+1, #11001100b
-	cjne	a, baud_save+1, paulmon_check_4_baud_finish
-	xrl	baud_save+1, #11001100b				; Redo XOR
-	xrl	baud_save+0, #00011101b
-	cjne	a, baud_save+0, paulmon_check_4_baud_finish
-	xrl	baud_save+0, #00011101b				; Redo XOR
-	setb	c
-paulmon_check_4_baud_finish:
 	ret
 
 
