@@ -2973,15 +2973,12 @@ ascii_font_table_char_127:							; DEL
 system_setup:
 	lcall	newline
 system_setup_init_reg:
-	mov	c, use_oysterlib						; Save flag state
 	clr	keyboard_key_down						; Clear keyboard flag
 	clr	keyboard_new_char						; Clear keyboard flag
-	mov	a, #0
+	clr	a
 	mov	keycode_ascii, a						; Clear keyboard buffer
-	mov	mem_mode, a
 	cpl	a
 	mov	keycode_raw, a							; Clear raw keyboard buffer
-	mov	use_oysterlib, c						; Restore flag state
 
 system_setup_ram:
 	mov	dptr, #str_cfg_mem
