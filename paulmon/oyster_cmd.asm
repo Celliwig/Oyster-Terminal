@@ -216,7 +216,7 @@
 
 .org	locat+0x000
 .db	0xA5,0xE5,0xE0,0xA5	; signiture bytes
-.db	254,'@',0,0		; id (254=cmd)
+.db	254,'"',0,0		; id (254=cmd)
 .db	0,0,0,0			; prompt code vector
 .db	0,0,0,0			; reserved
 .db	0,0,0,0			; reserved
@@ -565,34 +565,34 @@ str_i2c_dump_regs:	.db	"	4 - Dump Registers", 0
 
 ;---------------------------------------------------------;
 ;                                                         ;
-;                       Screen tool                       ;
+;                     Console select                      ;
 ;                                                         ;
 ;---------------------------------------------------------;
 
 .org    locat+0x400
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
-.db     254,'#',0,0		; id (254=cmd)
+.db     254,')',0,0		; id (254=cmd)
 .db     0,0,0,0			; prompt code vector
 .db     0,0,0,0			; reserved
 .db     0,0,0,0			; reserved
 .db     0,0,0,0			; reserved
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
-.db     "Screen tool",0
+.db     "Console select",0
 .org    locat+0x440		; executable code begins here
 
 
-screen_tool:
+console_select:
 	lcall	oysterlib_newline
 
-screen_tool_menu:
+console_select_menu:
 	mov	dptr, #str_screen_header			; Print menu
 	lcall	pstr
 	lcall	oysterlib_newline
-	mov	dptr, #str_screen_on
+	mov	dptr, #str_screen_hardware
 	lcall	pstr
 	lcall	oysterlib_newline
-	mov	dptr, #str_screen_off
+	mov	dptr, #str_screen_serial
 	lcall	pstr
 	lcall	oysterlib_newline
 ;	mov	dptr, #str_menu_quit
@@ -601,23 +601,34 @@ screen_tool_menu:
 	lcall	oysterlib_cin					; Get menu selection
 	lcall	oysterlib_newline
 
-screen_tool_menu_1:
-	cjne	a, #'1', screen_tool_menu_2
+console_select_menu_1u:
+	cjne	a, #'H', console_select_menu_1l
+	sjmp	console_select_menu_1_do
+console_select_menu_1l:
+	cjne	a, #'h', console_select_menu_2u
+console_select_menu_1_do:
+	setb	use_oysterlib
 	lcall	lcd_init
-	ljmp	lcd_set_backlight_on
-screen_tool_menu_2:
-	cjne	a, #'2', screen_tool_menu_else
+	ret
+console_select_menu_2u:
+	cjne	a, #'S', console_select_menu_2l
+	sjmp	console_select_menu_2_do
+console_select_menu_2l:
+	cjne	a, #'s', console_select_menu_else
+console_select_menu_2_do:
+	clr	use_oysterlib
+	lcall	serial_mainport_enable
 	lcall	lcd_off
-	ljmp	lcd_set_backlight_off
-;screen_tool_menu_quit:
-;	cjne	a, #'0', screen_tool_menu_else
+	ret
+;console_select_menu_quit:
+;	cjne	a, #'0', console_select_menu_else
 ;	ret
-screen_tool_menu_else:
-	sjmp	screen_tool
+console_select_menu_else:
+	sjmp	console_select
 
-str_screen_header:	.db	"Screen Tool:", 0
-str_screen_on:		.db	"	1 - On", 0
-str_screen_off:		.db	"	2 - Off", 0
+str_screen_header:	.db	"Select console:", 0
+str_screen_hardware:	.db	"	H - Hardware", 0
+str_screen_serial:	.db	"	S - Serial", 0
 
 
 .org	locat+0xe00
