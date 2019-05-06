@@ -12,22 +12,28 @@
 ; Command/Statement extensions check
 ;*****************************************************************************
 .org	mcs_basic_locat+0x2002
-	.db	0x00						; Change to 0x5A if implemented
+	.db	0x5A						; Change to 0x5A if implemented
 
 ;*****************************************************************************
-; Command/Statement extensions check2 (code sets bit 45)
+; Command/Statement extensions check2 (code sets bit 0x25.5)
 ;*****************************************************************************
 .org	mcs_basic_locat+0x2048
+	setb	extern_prog
+	ret
 
 ;*****************************************************************************
 ; Command/Statement extension (user vector table)
 ;*****************************************************************************
 .org	mcs_basic_locat+0x2070
+	mov	dptr, #cmd_vector_table
+	ret
 
 ;*****************************************************************************
 ; Command/Statement extension (user lookup table)
 ;*****************************************************************************
 .org	mcs_basic_locat+0x2078
+	mov	dptr, #cmd_token_table
+	ret
 
 ;*****************************************************************************
 ; Startup code
@@ -314,109 +320,129 @@ keyboard_status_handler:
 
 
 ;###############################################################################################################################
-;							Debug routines
+;							Command Extensions
 ;###############################################################################################################################
 
-debug_print_A:
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'D'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'B'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'G'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, a
-	sjmp	debug_print_crlf
+; Command extension vector table
+; Provides a list of addresses that correspond to the new commands
+cmd_vector_table:
+	.dw	basic_lcd_control						; Token: 0x10
+	.dw	basic_lcd_clear							; Token: 0x11
+	.dw	basic_lcd_plot							; Token: 0x12
 
-debug_print_PSW:
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'D'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'B'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'G'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, psw
-	sjmp	debug_print_crlf
+; Command extension token table
+; Provides a list of new commands, with their corresponding tokens
+cmd_token_table:
+	.db	0x10								; Token 1
+	.db	"LCD"								; Command name
+	.db	0x000								; End of token indicator
 
-debug_print_CMP:
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'D'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'B'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'G'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, a
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, rb0r2
-	sjmp	debug_print_crlf
+	.db	0x11								; Token 2
+	.db	"CLS"								; Command name
+	.db	0x000								; End of token indicator
 
-debug_print_1:
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'D'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'B'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'G'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'1'
-	sjmp	debug_print_crlf
+	.db	0x12								; Token 3
+	.db	"PLOT"								; Command name
+	.db	0x00
 
-debug_print_crlf:
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #CR
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #LF
+; Bugfix, needed to avoid problems with variable names
+	.db	0xdf								; Dummy token
+	.db	0x7f								; Unused dummy char
+;----------------------------------------------------------------------------
+	.db	0xff								; End of tokenlist indicator
+
+
+;*****************************************************************************
+; LCD commands
+;*****************************************************************************
+
+; Wrapper for OysterLib LCD control commands
+; LCD <arg> - 0 = off, 1 = on, >1 = init
+; ##########################################################################
+basic_lcd_control:
+	mov	a, #0x39							; Evaluate the first expression, and put on arg stack
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	mov	a, #0x01							; Pop from arg stack into r3:r1
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	mov	a, r1								; Get LSB of argument (ignore MSB)
+basic_lcd_control_off:
+	cjne	a, #0x00, basic_lcd_control_on
+	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
+	lcall	lcd_off
+	anl	psw, #0b11100111						; Restore register bank
+	ret
+basic_lcd_control_on:
+	cjne	a, #0x01, basic_lcd_control_init
+	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
+	lcall	lcd_on
+	anl	psw, #0b11100111						; Restore register bank
+	ret
+basic_lcd_control_init:
+	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
+	lcall	lcd_init
+	anl	psw, #0b11100111						; Restore register bank
 	ret
 
-debug_print_ibuf:
-	push	dph
-	push	dpl
-	push	acc
 
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'D'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'B'
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, #'G'
-	mov	dptr, #IBUF
-	movx	a, @dptr
-	jnb	ti, *								; Loop until serial buffer free
-	clr	ti
-	mov	sbuf, a
+; Wrapper for OysterLib LCD clear screen
+; ##########################################################################
+basic_lcd_clear:
+	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
+	lcall	lcd_clear_screen
+	anl	psw, #0b11100111						; Restore register bank
+	ret
 
-	pop	acc
-	pop	dpl
-	pop	dph
-	sjmp	debug_print_crlf
 
-; Dumps the internal registers raw, NOT converted to ASCII
-;debug_dump_internal_registers:
-;	jnb	ti, *								; Loop until serial buffer free
-;	clr	ti
-;	mov	sbuf, #'#'							; Move contents of register to serial buffer
-;	ret
+; Wrapper for OysterLib LCD plot
+; ##########################################################################
+basic_lcd_plot:
+	mov	a, #0x39							; Evaluate the first expression, and put on arg stack
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+	mov	a, #0x40							; Get the next character after the expression
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	cjne	a, #',', basic_lcd_plot_error					; There's supposed to be 2 arguments
+
+	mov	a, #0x39							; Evaluate the next expression, and put on arg stack
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+	mov	a, #0x01							; Pop from arg stack into r3:r1
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+basic_lcd_plot_check_y:
+	mov	a, r1								; y < 64, so only need LSB
+	cjne	a, #0x40, basic_lcd_plot_check_y_cmp				; Check that y is < 64
+basic_lcd_plot_check_y_cmp:
+	jc	basic_lcd_plot_check_y_save					; If it is, just save for later
+	mov	a, #0x3f							; Otherwise set at maximum value
+basic_lcd_plot_check_y_save:
+	push	acc								; Save for later
+
+	mov	a, #0x01							; Pop from arg stack into r3:r1
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+basic_lcd_plot_check_x:
+	mov	a, r1								; x < 192, so only need LSB
+	cjne	a, #0xc0, basic_lcd_plot_check_x_cmp				; Check that x is < 192
+basic_lcd_plot_check_x_cmp:
+	jc	basic_lcd_plot_check_x_okay					; If it is, just continue
+	mov	a, #0xbf							; Otherwise set at maximum value
+basic_lcd_plot_check_x_okay:
+	pop	b								; Restore y
+
+	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
+	lcall	lcd_plot_point
+	anl	psw, #0b11100111						; Restore register bank
+
+	ret
+basic_lcd_plot_error:
+	mov	a, #0x07							; Carriage return/line feed
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	mov	dptr, #str_arg2_err						; Get the error message
+	mov	r3, dph								; Copy address for print function
+	mov	r1, dpl
+	setb	prnt_rom_or_ram							; Print from ROM
+	mov	a, #0x06							; Print string
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	clr	a								; Return to command mode (as this was an error)
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+str_arg2_err:	.db	"BAD SYNTAX: 2nd ARG", 0x22				; '"' is the terminator
