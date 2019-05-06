@@ -2593,10 +2593,10 @@ ptime:	.db	128-3				; New programmer timer value is old value
 	NOP
 	NOP
 	NOP
-	NOP
-	NOP
-	NOP
-	NOP
+;	NOP
+;	NOP
+;	NOP
+;	NOP
 
 ;***************************************************************
 ;
@@ -3069,6 +3069,9 @@ ISTA1:
 	RL	A				; ROTATE FOR OFFSET
 	ADD	A, DPL				; BUMP
 	MOV	DPL, A				; SAVE IT
+	jnc	ISTA12				; See if we overflowed on the addition
+	inc	dph				; If we did, increment dph
+ISTA12:
 	CLR	A
 	MOVC	A, @A+DPTR			; GET HIGH BYTE
 	PUSH	ACC				; SAVE IT
