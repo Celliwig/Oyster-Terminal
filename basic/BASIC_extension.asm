@@ -236,6 +236,7 @@ lcd_terminal_bell_check:
 	sjmp	lcd_terminal_finish
 lcd_terminal_lf_check:
 	cjne	a, #0x0a, lcd_terminal_cr_check					; Check for a line feed character
+	jb	lcd_no_scroll, lcd_terminal_finish				; Ignore if no scroll set
 	lcall	lcd_new_line_scroll_and_clear					; If it's a LF, process it
 	sjmp	lcd_terminal_finish
 lcd_terminal_cr_check:
@@ -327,21 +328,31 @@ keyboard_status_handler:
 ; Provides a list of addresses that correspond to the new commands
 cmd_vector_table:
 	.dw	basic_lcd_control						; Token: 0x10
-	.dw	basic_lcd_clear							; Token: 0x11
-	.dw	basic_lcd_plot							; Token: 0x12
+	.dw	basic_lcd_set_position						; Token: 0x11
+	.dw	basic_lcd_text_attrib						; Token: 0x12
+	.dw	basic_lcd_clear							; Token: 0x13
+	.dw	basic_lcd_plot							; Token: 0x14
 
 ; Command extension token table
 ; Provides a list of new commands, with their corresponding tokens
 cmd_token_table:
 	.db	0x10								; Token 1
-	.db	"LCD"								; Command name
-	.db	0x000								; End of token indicator
+	.db	"LCDC"								; Command name
+	.db	0x00								; End of token indicator
 
 	.db	0x11								; Token 2
-	.db	"CLS"								; Command name
-	.db	0x000								; End of token indicator
+	.db	"LCDP"								; Command name
+	.db	0x00								; End of token indicator
 
 	.db	0x12								; Token 3
+	.db	"LCDT"								; Command name
+	.db	0x00								; End of token indicator
+
+	.db	0x13								; Token 4
+	.db	"CLS"								; Command name
+	.db	0x00								; End of token indicator
+
+	.db	0x14								; Token 5
 	.db	"PLOT"								; Command name
 	.db	0x00
 
@@ -356,8 +367,8 @@ cmd_token_table:
 ; LCD commands
 ;*****************************************************************************
 
-; Wrapper for OysterLib LCD control commands
-; LCD <arg> - 0 = off, 1 = on, >1 = init
+; # Wrapper for OysterLib LCD control commands
+; # LCDC <arg> - 0 = off, 1 = on, >1 = init
 ; ##########################################################################
 basic_lcd_control:
 	mov	a, #0x39							; Evaluate the first expression, and put on arg stack
@@ -383,8 +394,137 @@ basic_lcd_control_init:
 	anl	psw, #0b11100111						; Restore register bank
 	ret
 
+; # Wrapper for OysterLib LCD set position
+; # LCDP <column>, <row>
+; ##########################################################################
+basic_lcd_set_position:
+	mov	lcd_start_position, #0x00					; Initially clear position
 
-; Wrapper for OysterLib LCD clear screen
+	mov	a, #0x39							; Evaluate the first expression, and put on arg stack
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+	mov	a, #0x40							; Get the next character after the expression
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	cjne	a, #',', basic_lcd_set_position_error				; There's supposed to be 2 arguments
+
+	mov	a, #0x39							; Evaluate the next expression, and put on arg stack
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+	mov	a, #0x01							; Pop from arg stack into r3:r1
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+basic_lcd_set_position_check_y:
+	mov	a, r1								; y < 8, so only need LSB
+	cjne	a, #0x08, basic_lcd_set_position_check_y_cmp			; Check that y is < 8
+basic_lcd_set_position_check_y_cmp:
+	jc	basic_lcd_set_position_check_y_save				; If it is, just save for later
+	mov	a, #0x07							; Otherwise set at maximum value
+basic_lcd_set_position_check_y_save:
+	swap	a								; Move row data into the correct position
+	rl	a
+	orl	lcd_start_position, a						; Save row data
+
+	mov	a, #0x01							; Pop from arg stack into r3:r1
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+basic_lcd_set_position_check_x:
+	mov	a, r1								; x < 32, so only need LSB
+	cjne	a, #0x20, basic_lcd_set_position_check_x_cmp			; Check that x is < 32
+basic_lcd_set_position_check_x_cmp:
+	jc	basic_lcd_set_position_check_x_okay				; If it is, just continue
+	mov	a, #0x1f							; Otherwise set at maximum value
+basic_lcd_set_position_check_x_okay:
+	orl	lcd_start_position, a						; Save column data
+
+	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
+	lcall	lcd_set_glyph_position
+	anl	psw, #0b11100111						; Restore register bank
+
+	ret
+basic_lcd_set_position_error:
+	mov	a, #0x07							; Carriage return/line feed
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	mov	dptr, #str_arg2_err						; Get the error message
+	mov	r3, dph								; Copy address for print function
+	mov	r1, dpl
+	setb	prnt_rom_or_ram							; Print from ROM
+	mov	a, #0x06							; Print string
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	clr	a								; Return to command mode (as this was an error)
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+
+; # Sets various LCD print attributes (multiple attributes can be set/unset at once)
+; # LCDT <attrib bit>, <state = 0 - clear, >0 - set>
+; # Attrib bit:
+; #	0 - Double width
+; #	1 - Double height
+; #	2 - Invert
+; #	3 - No scroll
+; ##########################################################################
+basic_lcd_text_attrib:
+	mov	a, #0x39							; Evaluate the first expression, and put on arg stack
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+	mov	a, #0x40							; Get the next character after the expression
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	cjne	a, #',', basic_lcd_text_attrib_error				; There's supposed to be 2 arguments
+
+	mov	a, #0x39							; Evaluate the next expression, and put on arg stack
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+	mov	a, #0x01							; Pop from arg stack into r3:r1
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	mov	a, r1								; Get state
+	push	acc
+
+	mov	a, #0x01							; Pop from arg stack into r3:r1
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	pop	acc
+	clr	c								; Use Carry to store the attribute state
+	jz	basic_lcd_text_attrib_set
+	setb	c
+basic_lcd_text_attrib_set:
+	mov	a, r1								; Get attribute(s)
+
+basic_lcd_text_attrib_bit_double_width:
+	jnb	acc.0, basic_lcd_text_attrib_bit_double_height
+	clr	lcd_glyph_doublewidth
+	jnc	basic_lcd_text_attrib_bit_double_height
+	setb	lcd_glyph_doublewidth
+
+basic_lcd_text_attrib_bit_double_height:
+	jnb	acc.1, basic_lcd_text_attrib_bit_invert
+	clr	lcd_glyph_doubleheight
+	jnc	basic_lcd_text_attrib_bit_invert
+	setb	lcd_glyph_doubleheight
+
+basic_lcd_text_attrib_bit_invert:
+	jnb	acc.2, basic_lcd_text_attrib_bit_no_scroll
+	clr	lcd_glyph_invert
+	jnc	basic_lcd_text_attrib_bit_no_scroll
+	setb	lcd_glyph_invert
+
+basic_lcd_text_attrib_bit_no_scroll:
+	jnb	acc.3, basic_lcd_text_attrib_finish
+	clr	lcd_no_scroll
+	jnc	basic_lcd_text_attrib_finish
+	setb	lcd_no_scroll
+
+basic_lcd_text_attrib_finish:
+	ret
+basic_lcd_text_attrib_error:
+	mov	a, #0x07							; Carriage return/line feed
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	mov	dptr, #str_arg2_err						; Get the error message
+	mov	r3, dph								; Copy address for print function
+	mov	r1, dpl
+	setb	prnt_rom_or_ram							; Print from ROM
+	mov	a, #0x06							; Print string
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+	clr	a								; Return to command mode (as this was an error)
+	lcall	mcs_basic_locat+0x7B						; Assembler interface to BASIC
+
+
+; # Wrapper for OysterLib LCD clear screen
 ; ##########################################################################
 basic_lcd_clear:
 	orl	psw, #0b00011000						; Swap to register bank3 (0x18-0x1F)
@@ -393,7 +533,8 @@ basic_lcd_clear:
 	ret
 
 
-; Wrapper for OysterLib LCD plot
+; # Wrapper for OysterLib LCD plot
+; # PLOT <x>, <y>
 ; ##########################################################################
 basic_lcd_plot:
 	mov	a, #0x39							; Evaluate the first expression, and put on arg stack
