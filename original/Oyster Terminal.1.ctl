@@ -2101,6 +2101,13 @@ b	3a2b		; '?' | 0x80
 !	3a2b		'?' | 0x80
 l	3a36		ui_change_parameter_yes
 
+#	3b6e	#
+#	3b6e	############################################################
+#	3b6e	# flash_command_register_enable
+#	3b6e	#
+#	3b6e	# Sends the enable command register 'handshake'
+l	3b6e		flash_command_register_enable
+
 l	3c30		ui_display_battery_level
 !	3c30		Initialise and clear display
 !	3c35		Set character position at the start of the display
