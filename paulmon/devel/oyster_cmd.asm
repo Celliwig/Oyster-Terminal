@@ -149,8 +149,42 @@
 
 ; RAM definitions
 ; ##########################################################################
+; Bank 0
+.equ	rb0r0, 0x00
 .equ	rb0r1, 0x01
 .equ	rb0r2, 0x02
+.equ	rb0r3, 0x03
+.equ	rb0r4, 0x04
+.equ	rb0r5, 0x05
+.equ	rb0r6, 0x06
+.equ	rb0r7, 0x07
+; Bank 1
+.equ	rb1r0, 0x08
+.equ	rb1r1, 0x09
+.equ	rb1r2, 0x0a
+.equ	rb1r3, 0x0b
+.equ	rb1r4, 0x0c
+.equ	rb1r5, 0x0d
+.equ	rb1r6, 0x0e
+.equ	rb1r7, 0x0f
+; Bank 2
+.equ	rb2r0, 0x10
+.equ	rb2r1, 0x11
+.equ	rb2r2, 0x12
+.equ	rb2r3, 0x13
+.equ	rb2r4, 0x14
+.equ	rb2r5, 0x15
+.equ	rb2r6, 0x16
+.equ	rb2r7, 0x17
+; Bank 3
+.equ	rb3r0, 0x18
+.equ	rb3r1, 0x19
+.equ	rb3r2, 0x1a
+.equ	rb3r3, 0x1b
+.equ	rb3r4, 0x1c
+.equ	rb3r5, 0x1d
+.equ	rb3r6, 0x1e
+.equ	rb3r7, 0x1f
 
 ; Bit addressable addresses (0x20-0x21 not used by MCS BASIC)
 .equ	stack_carry, 0x20					; Save Carry state here to load on the stack
@@ -633,124 +667,359 @@ str_screen_serial:	.db	"	S - Serial", 0
 
 ;---------------------------------------------------------;
 ;                                                         ;
-;                Copy keyboard to serial                  ;
+;                   Simple flash tool                     ;
 ;                                                         ;
 ;---------------------------------------------------------;
 
 .org    locat+0x500
 .db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
-.db     254,'|',0,0		; id (254=cmd)
+.db     254,'@',0,0		; id (254=cmd)
 .db     0,0,0,0			; prompt code vector
 .db     0,0,0,0			; reserved
 .db     0,0,0,0			; reserved
 .db     0,0,0,0			; reserved
 .db     0,0,0,0			; user defined
 .db     255,255,255,255		; length and checksum (255=unused)
-.db     "Keyboard 2 Serial",0
+.db     "Flash tool",0
 .org    locat+0x540		; executable code begins here
 
 
-key_2_serial:
+; # Copied from OysterLib
+; #######################################
+; define latch addresses
+.equ    psen_page_latch, 0x08
+.equ    rdwr_page_latch, 0x0c
+
+; # Flash chip definitions
+; #######################################
+.equ	flash_command_reg_addr1, 0x5555
+.equ	flash_command_reg_addr2, 0x2aaa
+.equ	flash_command_reg_enable1, 0xaa
+.equ	flash_command_reg_enable2, 0x55
+
+.equ	flash_command_reset, 0xf0
+.equ	flash_command_autoselect, 0x90
+.equ	flash_command_program, 0xa0
+.equ	flash_command_erase, 0x80
+.equ	flash_command_erase_all, 0x10
+.equ	flash_command_erase_sector, 0x30
+
+.equ	base_addr, 0x8000
+.equ	flash_tool_addr_fudge, 0x0000				; Fudge to allow code to run while being developed in RAM
+;.equ	flash_tool_addr_fudge, 0x8000				; And then run from ROM (which has been copied to RAM)
+
+
+; # flash_tool
+; #
+; # Copies the XRAM area 0x0000 to XRAM area 0x8000, with the selected
+; # flash ROM page mapped to this area
+; ##########################################################################
+flash_tool:
 	lcall	oysterlib_newline
 
-key_2_serial_loop:
-	lcall	keyboard_wait_for_keypress
-	mov	a, keycode_ascii
+	mov	dptr, #*					; Check whether we are running from ROM or a RAM dev version
+	mov	a, dph
+	cjne	a, #0x80, flash_tool_location_check
+flash_tool_location_check:
+	jnc	flash_tool_actual
+	mov	dptr, #str_ft_err_memloc			; Print error message and exit
+	lcall	pstr
+	lcall	oysterlib_newline
+	ret
+
+flash_tool_actual:
+	mov	dptr, #str_ft_device				; Print device ID
+	lcall	pstr
+	acall	flash_get_deviceid+flash_tool_addr_fudge
+	lcall	phex
+	mov	a, #'/'
 	lcall	oysterlib_cout
-
-;	mov	a, keycode_ascii
-;	lcall	phex
-;	mov	a, keymap_offset
-;	lcall	phex
-
-	clr	keyboard_new_char
+	mov	a, b
+	lcall	phex
 	lcall	oysterlib_newline
-	sjmp	key_2_serial_loop
 
-
-;---------------------------------------------------------;
-;                                                         ;
-;                 Plot points to display                  ;
-;                                                         ;
-;---------------------------------------------------------;
-
-.org    locat+0x600
-.db     0xA5,0xE5,0xE0,0xA5	; signiture bytes
-.db     254,'*',0,0		; id (254=cmd)
-.db     0,0,0,0			; prompt code vector
-.db     0,0,0,0			; reserved
-.db     0,0,0,0			; reserved
-.db     0,0,0,0			; reserved
-.db     0,0,0,0			; user defined
-.db     255,255,255,255		; length and checksum (255=unused)
-.db     "Plot 2 LCD",0
-.org    locat+0x640		; executable code begins here
-
-
-plot_2_lcd:
+	mov	dptr, #str_ft_select_page			; Get the desired page to flash
+	lcall	pstr
+	lcall	ghex
 	lcall	oysterlib_newline
-	lcall	lcd_clear_screen
+	mov	r1, a						; Save selected page
+	anl	a, #0x03					; Make sure it's within the desired range
+	xrl	a, r1						; And make sure it's what we entered
+	jz	flash_tool_actual_confirm
+	mov	dptr, #str_ft_err_page
+	lcall	pstr
+	lcall	oysterlib_newline
+	ret
 
-plot_2_lcd_loop:
-	mov	a, #0x40
-	mov	b, #0x22
-	lcall	lcd_plot_point
-	mov	a, #0x41
-	mov	b, #0x22
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x22
-	lcall	lcd_plot_point
-	mov	a, #0x43
-	mov	b, #0x22
-	lcall	lcd_plot_point
-	mov	a, #0x44
-	mov	b, #0x22
-	lcall	lcd_plot_point
+flash_tool_actual_confirm:
+	mov	dptr, #str_ft_confirm				; Confirm we want to flash page
+	lcall	pstr
+	lcall	oysterlib_cin
+	lcall	oysterlib_newline
+	cjne	a, #'Y', flash_tool_finish			; Check choice
+
+	mov	dptr, #str_ft_erasing_page
+	lcall	pstr
+	mov	a, r1
+	lcall	phex
+	mov	a, #':'
+	lcall	oysterlib_cout
+	mov	a, #' '
+	lcall	oysterlib_cout
+	acall	flash_erase_page+flash_tool_addr_fudge		; Erase page
+	mov	dptr, #str_fail
+	jc	flash_tool_actual_erase_result
+	mov	dptr, #str_okay
+flash_tool_actual_erase_result:
+	lcall	pstr
+	lcall	oysterlib_newline
+
+	mov	dptr, #str_ft_flashing_page
+	lcall	pstr
+	mov	a, r1
+	lcall	phex
+	mov	a, #':'
+	lcall	oysterlib_cout
+	mov	a, #' '
+	lcall	oysterlib_cout
+	lcall	flash_tool_flash_page_from_ram+flash_tool_addr_fudge	; Flash page
+	mov	dptr, #str_fail
+	jc	flash_tool_actual_flash_result
+	mov	dptr, #str_okay
+flash_tool_actual_flash_result:
+	lcall	pstr
+	lcall	oysterlib_newline
+
+flash_tool_finish:
+	ret
 
 
-	mov	a, #0x42
-	mov	b, #0x20
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x21
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x22
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x23
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x24
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x25
-	lcall	lcd_plot_point
+; # flash_tool_flash_page_from_ram
+; #
+; # Copies from system RAM page 0 to the specified ROM page
+; # In:
+; #   r1 - ROM page to select
+; # Out:
+; #   Carry - Set on error
+; ##########################################################################
+flash_tool_flash_page_from_ram:
+	mov	r2, #0xFF					; Address pointer LSB store
+	mov	r3, #0x7F					; Address pointer MSB store
 
-	mov	a, #0x42
-	mov	b, #0x18
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x19
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x1a
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x1b
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x1c
-	lcall	lcd_plot_point
-	mov	a, #0x42
-	mov	b, #0x1d
-	lcall	lcd_plot_point
+flash_tool_flash_page_from_ram_read_loop:
+	setb	p1.2						; Select RAM
+	setb	mem_mode_rdwr_ram
+	clr	p1.3
+	clr	mem_mode_rdwr_ram_card
 
-;	sjmp	plot_2_lcd_loop
+	mov	a, #0						; Select page 0
+	mov	mem_page_rdwr, a
+	mov	dph, #rdwr_page_latch
+	setb	p1.4						; Enable address logic
+	movx	@dptr, a
+	clr	p1.4
+
+	mov	dpl, r2						; Load dptr with next byte to read
+	mov	dph, r3
+	movx	a, @dptr					; Get next byte
+
+	mov	r0, a						; Set data to program
+	acall	flash_program_byte+flash_tool_addr_fudge
+	jc	flash_tool_flash_page_from_ram_finish		; On error, exit
+
+	dec	r2
+	cjne	r2, #0xff, flash_tool_flash_page_from_ram_read_loop	; Loop on the LSB of address data
+	dec	r3
+	cjne	r3, #0xff, flash_tool_flash_page_from_ram_read_loop	; Loop on the MSB of address data
+
+	clr	c						; No errors
+flash_tool_flash_page_from_ram_finish:
+	ret
+
+
+; # flash_enable_command_register
+; #
+; # Sends the command register select sequence
+; ##########################################################################
+flash_send_command:
+	clr	p1.2						; Select ROM
+	clr	mem_mode_rdwr_ram
+	clr	p1.3
+	clr	mem_mode_rdwr_ram_card
+
+	mov	a, #0						; Select page 0
+	mov	mem_page_rdwr, a
+	mov	dph, #rdwr_page_latch
+	setb	p1.4						; Enable address logic
+	movx	@dptr, a
+	clr	p1.4
+
+flash_send_command_no_setup:
+	mov	dptr, #base_addr+flash_command_reg_addr1	; Command register enable address 1
+	mov	a,  #0xaa					; Command register enable command byte 1
+	movx	@dptr, a
+
+	mov	dptr, #base_addr+flash_command_reg_addr2	; Command register enable address 2
+	mov	a,  #0x55					; Command register command byte 2
+	movx	@dptr,a
+
+	mov	dptr, #base_addr+flash_command_reg_addr1	; Command register enable address 1
 
 	ret
 
+
+; # flash_device_reset
+; #
+; # Resets the flash device back to read operation
+; ##########################################################################
+flash_device_reset:
+	acall	flash_send_command+flash_tool_addr_fudge
+	mov	a,  #flash_command_reset			; Reset device operation
+	movx	@dptr, a
+	ret
+
+
+; # flash_get_deviceid
+; #
+; # Gets the flash chip manufacturer/device ID
+; # Out:
+; #   A - Manufacturer ID
+; #   B - Device ID
+; ##########################################################################
+flash_get_deviceid:
+	acall	flash_send_command+flash_tool_addr_fudge
+	mov	a,  #flash_command_autoselect			; Device/ID command
+	movx	@dptr, a
+
+	mov	dptr, #base_addr
+	movx	a, @dptr
+	push	acc						; Save manufacturer id
+
+	inc	dptr
+	movx	a, @dptr
+	push	acc						; Save device id
+
+	acall	flash_device_reset+flash_tool_addr_fudge	; Reset the device back to read operation
+
+	pop	b						; Restore device id
+	pop	acc						; Restore manufacturer id
+
+	ret
+
+
+; # flash_erase_page
+; #
+; # Erase a page of memory
+; # In:
+; #   r1 - ROM page to erase (0-3)
+; # Out:
+; #   Carry - Set on error
+; ##########################################################################
+flash_erase_page:
+	acall	flash_send_command+flash_tool_addr_fudge
+	mov	a, #flash_command_erase				; Setup erase
+	movx	@dptr, a
+	acall	flash_send_command_no_setup+flash_tool_addr_fudge
+	mov	a, r1						; Get ROM page to write
+	anl	a, #3						; Make sure it's valid
+	mov	mem_page_rdwr, a
+	mov	dph, #rdwr_page_latch
+	setb	p1.4						; Enable address logic
+	movx	@dptr, a
+	clr	p1.4
+	mov	dptr, #base_addr+0x0000				; Select first sector of page
+	mov	a, #flash_command_erase_sector			; Select sector erase
+	movx	@dptr, a
+
+flash_erase_page_sector0_loop:
+	movx	a, @dptr
+	jb	acc.7, flash_erase_page_sector0_loop_finish	; Check whether this sector erase has finished
+	jb	acc.5, flash_erase_page_error			; Check whether the sector erase has timed out
+	sjmp	flash_erase_page_sector0_loop
+flash_erase_page_sector0_loop_finish:
+
+	acall	flash_send_command+flash_tool_addr_fudge
+	mov	a, #flash_command_erase				; Setup erase
+	movx	@dptr, a
+	acall	flash_send_command_no_setup+flash_tool_addr_fudge
+	mov	a, r1						; Get ROM page to write
+	anl	a, #3						; Make sure it's valid
+	mov	mem_page_rdwr, a
+	mov	dph, #rdwr_page_latch
+	setb	p1.4						; Enable address logic
+	movx	@dptr, a
+	clr	p1.4
+	mov	dptr, #base_addr+0x4000				; Select second sector of page
+	mov	a, #flash_command_erase_sector			; Select sector erase
+	movx	@dptr, a
+
+flash_erase_page_sector1_loop:
+	movx	a, @dptr
+	jb	acc.7, flash_erase_page_sector1_loop_finish	; Check whether this sector erase has finished
+	jb	acc.5, flash_erase_page_error			; Check whether the sector erase has timed out
+	sjmp	flash_erase_page_sector1_loop
+flash_erase_page_sector1_loop_finish:
+
+	clr	c						; There wasn't any errors
+	ret
+flash_erase_page_error:
+	setb	c						; There was an error
+	ret
+
+
+; # flash_program_byte
+; #
+; # Program a byte of flash memory
+; # In:
+; #   r0 - Data to write
+; #   r1 - ROM page to select
+; #   r2 - A7-A0 of address to write data to
+; #   r3 - A14-A8 of address to write data to
+; # Out:
+; #   Carry - Set on error
+; ##########################################################################
+flash_program_byte:
+	acall	flash_send_command+flash_tool_addr_fudge
+	mov	a, #flash_command_program			; Program byte
+	movx	@dptr, a
+
+	mov	a, r1						; Get ROM page to write
+	anl	a, #3						; Make sure it's valid
+	mov	mem_page_rdwr, a
+	mov	dph, #rdwr_page_latch
+	setb	p1.4						; Enable address logic
+	movx	@dptr, a
+	clr	p1.4
+
+	mov	dph, r3						; Get address MSB
+	orl	dph, #0x80					; Make sure we are wrting in the right place
+	mov	dpl, r2						; Get address LSB
+	mov	a, r0						; Get data
+	movx	@dptr, a					; Save data
+
+flash_program_byte_check_loop:
+	movx	a, @dptr					; Check if data saved
+	mov	b, a						; Save a copy
+	xrl	a, r0						; 0 if the data matches
+	jz	flash_program_byte_check_loop_finish
+	mov	a, b						; Otherwise check for a timeout
+	jb	acc.5, flash_program_byte_error
+	sjmp	flash_program_byte_check_loop
+flash_program_byte_check_loop_finish:
+
+	clr	c
+	ret
+flash_program_byte_error:
+	setb	c
+	ret
+
+str_ft_err_memloc:	.db	"Can't run from ROM.", 0
+str_ft_err_page:	.db	"Incorrect page selected.", 0
+str_ft_confirm:		.db	"Confirm flash write [Y/N]: ", 0
+str_ft_device:		.db	"Device: ", 0
+str_ft_select_page:	.db	"Select Page To Flash: ", 0
+str_ft_erasing_page:	.db	"Erasing Page ", 0
+str_ft_flashing_page:	.db	"Flashing Page ", 0
 
 .org	locat+0xe00
 ; ###############################################################################################################
