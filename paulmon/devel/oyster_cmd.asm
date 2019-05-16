@@ -704,23 +704,30 @@ str_screen_serial:	.db	"	S - Serial", 0
 .equ	flash_command_erase_all, 0x10
 .equ	flash_command_erase_sector, 0x30
 
-.equ	base_addr, 0x8000
-.equ	flash_tool_addr_fudge, 0x0000				; Fudge to allow code to run while being developed in RAM
-;.equ	flash_tool_addr_fudge, 0x8000				; And then run from ROM (which has been copied to RAM)
+.equ	base_addr, 0x8000					; Base address for all ROM command operations
 
+.equ	flash_tool_addr_fudge, (paulmon+0x8000)&0xFFFF		; Fudge to allow code to run while being developed in RAM
+								; or run from ROM (which has been copied to RAM)
 
 ; # flash_tool
 ; #
 ; # Copies the XRAM area 0x0000 to XRAM area 0x8000, with the selected
-; # flash ROM page mapped to this area
+; # flash ROM page mapped to this area.
 ; ##########################################################################
 flash_tool:
 	lcall	oysterlib_newline
 
+	jnb	use_oysterlib, flash_tool_location_check	; Check whether we are using a serial link
+	mov	dptr, #str_ft_err_con				; If not, print error
+	lcall	pstr
+	lcall	newline
+	ret							; and exit
+
+flash_tool_location_check:
 	mov	dptr, #*					; Check whether we are running from ROM or a RAM dev version
 	mov	a, dph
-	cjne	a, #0x80, flash_tool_location_check
-flash_tool_location_check:
+	cjne	a, #0x80, flash_tool_location_check_cmp
+flash_tool_location_check_cmp:
 	jnc	flash_tool_actual
 	mov	dptr, #str_ft_copy_rom
 	lcall	pstr
@@ -741,76 +748,113 @@ flash_tool_location_check:
 	ljmp	flash_tool_actual+flash_tool_addr_fudge		; Jump to copy in RAM
 
 flash_tool_actual:
-	mov	dptr, #str_ft_device				; Print device ID
-	lcall	pstr
-	acall	flash_get_deviceid+flash_tool_addr_fudge
-	lcall	phex
+	mov	dptr, #str_ft_device+flash_tool_addr_fudge	; Print device ID
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_get_deviceid+flash_tool_addr_fudge
+	lcall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #'/'
-	lcall	oysterlib_cout
+	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, b
-	lcall	phex
-	lcall	oysterlib_newline
+	lcall	flash_tool_print_hex+flash_tool_addr_fudge
+	lcall	oysterlib_newline+flash_tool_addr_fudge
 
-	mov	dptr, #str_ft_select_page			; Get the desired page to flash
-	lcall	pstr
-	lcall	ghex
-	lcall	oysterlib_newline
+	mov	dptr, #str_ft_select_page+flash_tool_addr_fudge	; Get the desired page to flash
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	oysterlib_cin+flash_tool_addr_fudge
+	lcall	oysterlib_newline+flash_tool_addr_fudge
 	mov	r1, a						; Save selected page
 	anl	a, #0x03					; Make sure it's within the desired range
 	xrl	a, r1						; And make sure it's what we entered
 	jz	flash_tool_actual_confirm
-	mov	dptr, #str_ft_err_page
-	lcall	pstr
-	lcall	oysterlib_newline
+	mov	dptr, #str_ft_err_page+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	oysterlib_newline+flash_tool_addr_fudge
 	ret
 
 flash_tool_actual_confirm:
-	mov	dptr, #str_ft_confirm				; Confirm we want to flash page
-	lcall	pstr
-	lcall	oysterlib_cin
-	lcall	oysterlib_newline
+	mov	dptr, #str_ft_confirm+flash_tool_addr_fudge	; Confirm we want to flash page
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	oysterlib_cin+flash_tool_addr_fudge
+	lcall	oysterlib_newline+flash_tool_addr_fudge
 	cjne	a, #'Y', flash_tool_finish			; Check choice
 
-	mov	dptr, #str_ft_erasing_page
-	lcall	pstr
+	mov	dptr, #str_ft_erasing_page+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	mov	a, r1
-	lcall	phex
+	lcall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #':'
-	lcall	oysterlib_cout
+	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, #' '
-	lcall	oysterlib_cout
-	acall	flash_erase_page+flash_tool_addr_fudge		; Erase page
-	mov	dptr, #str_fail
+	lcall	oysterlib_cout+flash_tool_addr_fudge
+	lcall	flash_erase_page+flash_tool_addr_fudge		; Erase page
+	mov	dptr, #str_fail+flash_tool_addr_fudge
 	jc	flash_tool_actual_erase_result
-	mov	dptr, #str_okay
+	mov	dptr, #str_okay+flash_tool_addr_fudge
 flash_tool_actual_erase_result:
-	lcall	pstr
-	lcall	oysterlib_newline
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	oysterlib_newline+flash_tool_addr_fudge
 
-	mov	dptr, #str_ft_flashing_page
-	lcall	pstr
+	mov	dptr, #str_ft_flashing_page+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	mov	a, r1
-	lcall	phex
+	lcall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #':'
-	lcall	oysterlib_cout
+	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, #' '
-	lcall	oysterlib_cout
+	lcall	oysterlib_cout+flash_tool_addr_fudge
 	lcall	flash_tool_flash_page_from_ram+flash_tool_addr_fudge	; Flash page
-	mov	dptr, #str_fail
+	mov	dptr, #str_fail+flash_tool_addr_fudge
 	jc	flash_tool_actual_flash_result
-	mov	dptr, #str_okay
+	mov	dptr, #str_okay+flash_tool_addr_fudge
 flash_tool_actual_flash_result:
-	lcall	pstr
-	lcall	oysterlib_newline
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	oysterlib_newline+flash_tool_addr_fudge
 
 	mov	a, r1						; If page 0 was written, we need to reset
 	jnz	flash_tool_finish
-	mov	dptr, #str_ft_reseting_device
-	lcall	pstr
-	lcall	oysterlib_newline
+	mov	dptr, #str_ft_reseting_device+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	oysterlib_newline+flash_tool_addr_fudge
 	ljmp	#0x0000						; Perform a reset as the monitor was overwritten
 
 flash_tool_finish:
+	ret
+
+; ##############################################################################
+; # Flash tool helper functions
+; ##############################################################################
+
+; # flash_tool_print_hex
+; #
+; # Copy of the hex printer (because we're running in RAM)
+; ##########################################################################
+flash_tool_print_hex:
+	acall	flash_tool_print_hex_digit+flash_tool_addr_fudge
+flash_tool_print_hex_digit:
+	swap	a						; SWAP A will be twice => A unchanged
+	push	acc
+	anl	a, #15
+	add	a, #0x90					; acc is 0x9X, where X is hex digit
+	da	a						; if A to F, C=1 and lower four bits are 0..5
+	addc	a, #0x40
+	da	a
+	lcall	oysterlib_cout+flash_tool_addr_fudge
+	pop	acc
+	ret
+
+
+; # flash_tool_print_str
+; #
+; # Copy of the string printer (because we're running in RAM)
+; ##########################################################################
+flash_tool_print_str:
+	clr	a
+	movc	a, @a+dptr
+	inc	dptr
+	jz	flash_tool_print_str_end
+	lcall	oysterlib_cout+flash_tool_addr_fudge
+	sjmp	flash_tool_print_str
+flash_tool_print_str_end:
 	ret
 
 
@@ -848,6 +892,10 @@ flash_tool_copy_rom_to_ram_loop:
 
 	ret
 
+
+; ##############################################################################
+; # ROM flash routines
+; ##############################################################################
 
 ; # flash_tool_flash_page_from_ram
 ; #
@@ -1068,6 +1116,7 @@ flash_program_byte_error:
 	setb	c
 	ret
 
+str_ft_err_con:		.db	"This tool can only be run using a serial connection.", 0
 str_ft_err_page:	.db	"Incorrect page selected.", 0
 str_ft_confirm:		.db	"Confirm flash write [Y/N]: ", 0
 str_ft_copy_rom:	.db	"Copying system ROM to RAM.", 0
