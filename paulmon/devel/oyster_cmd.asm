@@ -706,7 +706,7 @@ str_screen_serial:	.db	"	S - Serial", 0
 
 .equ	base_addr, 0x8000					; Base address for all ROM command operations
 
-.equ	flash_tool_addr_fudge, (paulmon+0x8000)&0xFFFF		; Fudge to allow code to run while being developed in RAM
+.equ	flash_tool_addr_fudge, (paulmon2+0x8000)&0xFFFF		; Fudge to allow code to run while being developed in RAM
 								; or run from ROM (which has been copied to RAM)
 
 ; # flash_tool
@@ -720,7 +720,7 @@ flash_tool:
 	jnb	use_oysterlib, flash_tool_location_check	; Check whether we are using a serial link
 	mov	dptr, #str_ft_err_con				; If not, print error
 	lcall	pstr
-	lcall	newline
+	lcall	oysterlib_newline
 	ret							; and exit
 
 flash_tool_location_check:
@@ -815,7 +815,7 @@ flash_tool_actual_flash_result:
 	mov	dptr, #str_ft_reseting_device+flash_tool_addr_fudge
 	acall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
-	ljmp	#0x0000						; Perform a reset as the monitor was overwritten
+	ljmp	0x0000						; Perform a reset as the monitor was overwritten
 
 flash_tool_finish:
 	ret
