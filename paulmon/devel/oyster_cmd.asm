@@ -761,7 +761,10 @@ flash_tool_actual:
 	mov	dptr, #str_ft_select_page+flash_tool_addr_fudge	; Get the desired page to flash
 	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_cin+flash_tool_addr_fudge
+	lcall	oysterlib_cout+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
+	clr	c						; Clear Carry for the following subtract
+	subb	a, #0x30					; Convert from ASCII
 	mov	r1, a						; Save selected page
 	anl	a, #0x03					; Make sure it's within the desired range
 	xrl	a, r1						; And make sure it's what we entered
