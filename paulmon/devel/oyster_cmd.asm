@@ -749,17 +749,17 @@ flash_tool_location_check_cmp:
 
 flash_tool_actual:
 	mov	dptr, #str_ft_device+flash_tool_addr_fudge	; Print device ID
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
-	lcall	flash_get_deviceid+flash_tool_addr_fudge
-	lcall	flash_tool_print_hex+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_get_deviceid+flash_tool_addr_fudge
+	acall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #'/'
 	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, b
-	lcall	flash_tool_print_hex+flash_tool_addr_fudge
+	acall	flash_tool_print_hex+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 
 	mov	dptr, #str_ft_select_page+flash_tool_addr_fudge	; Get the desired page to flash
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_cin+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 	mov	r1, a						; Save selected page
@@ -767,53 +767,53 @@ flash_tool_actual:
 	xrl	a, r1						; And make sure it's what we entered
 	jz	flash_tool_actual_confirm
 	mov	dptr, #str_ft_err_page+flash_tool_addr_fudge
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 	ret
 
 flash_tool_actual_confirm:
 	mov	dptr, #str_ft_confirm+flash_tool_addr_fudge	; Confirm we want to flash page
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_cin+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 	cjne	a, #'Y', flash_tool_finish			; Check choice
 
 	mov	dptr, #str_ft_erasing_page+flash_tool_addr_fudge
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
 	mov	a, r1
-	lcall	flash_tool_print_hex+flash_tool_addr_fudge
+	acall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #':'
 	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, #' '
 	lcall	oysterlib_cout+flash_tool_addr_fudge
-	lcall	flash_erase_page+flash_tool_addr_fudge		; Erase page
+	acall	flash_erase_page+flash_tool_addr_fudge		; Erase page
 	mov	dptr, #str_fail+flash_tool_addr_fudge
 	jc	flash_tool_actual_erase_result
 	mov	dptr, #str_okay+flash_tool_addr_fudge
 flash_tool_actual_erase_result:
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 
 	mov	dptr, #str_ft_flashing_page+flash_tool_addr_fudge
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
 	mov	a, r1
-	lcall	flash_tool_print_hex+flash_tool_addr_fudge
+	acall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #':'
 	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, #' '
 	lcall	oysterlib_cout+flash_tool_addr_fudge
-	lcall	flash_tool_flash_page_from_ram+flash_tool_addr_fudge	; Flash page
+	acall	flash_tool_flash_page_from_ram+flash_tool_addr_fudge	; Flash page
 	mov	dptr, #str_fail+flash_tool_addr_fudge
 	jc	flash_tool_actual_flash_result
 	mov	dptr, #str_okay+flash_tool_addr_fudge
 flash_tool_actual_flash_result:
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 
 	mov	a, r1						; If page 0 was written, we need to reset
 	jnz	flash_tool_finish
 	mov	dptr, #str_ft_reseting_device+flash_tool_addr_fudge
-	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	acall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 	ljmp	#0x0000						; Perform a reset as the monitor was overwritten
 
