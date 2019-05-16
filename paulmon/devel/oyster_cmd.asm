@@ -749,17 +749,17 @@ flash_tool_location_check_cmp:
 
 flash_tool_actual:
 	mov	dptr, #str_ft_device+flash_tool_addr_fudge	; Print device ID
-	acall	flash_tool_print_str+flash_tool_addr_fudge
-	acall	flash_get_deviceid+flash_tool_addr_fudge
-	acall	flash_tool_print_hex+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_get_deviceid+flash_tool_addr_fudge
+	lcall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #'/'
 	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, b
-	acall	flash_tool_print_hex+flash_tool_addr_fudge
+	lcall	flash_tool_print_hex+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 
 	mov	dptr, #str_ft_select_page+flash_tool_addr_fudge	; Get the desired page to flash
-	acall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_cin+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 	mov	r1, a						; Save selected page
@@ -767,53 +767,53 @@ flash_tool_actual:
 	xrl	a, r1						; And make sure it's what we entered
 	jz	flash_tool_actual_confirm
 	mov	dptr, #str_ft_err_page+flash_tool_addr_fudge
-	acall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 	ret
 
 flash_tool_actual_confirm:
 	mov	dptr, #str_ft_confirm+flash_tool_addr_fudge	; Confirm we want to flash page
-	acall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_cin+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 	cjne	a, #'Y', flash_tool_finish			; Check choice
 
 	mov	dptr, #str_ft_erasing_page+flash_tool_addr_fudge
-	acall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	mov	a, r1
-	acall	flash_tool_print_hex+flash_tool_addr_fudge
+	lcall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #':'
 	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, #' '
 	lcall	oysterlib_cout+flash_tool_addr_fudge
-	acall	flash_erase_page+flash_tool_addr_fudge		; Erase page
+	lcall	flash_erase_page+flash_tool_addr_fudge		; Erase page
 	mov	dptr, #str_fail+flash_tool_addr_fudge
 	jc	flash_tool_actual_erase_result
 	mov	dptr, #str_okay+flash_tool_addr_fudge
 flash_tool_actual_erase_result:
-	acall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 
 	mov	dptr, #str_ft_flashing_page+flash_tool_addr_fudge
-	acall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	mov	a, r1
-	acall	flash_tool_print_hex+flash_tool_addr_fudge
+	lcall	flash_tool_print_hex+flash_tool_addr_fudge
 	mov	a, #':'
 	lcall	oysterlib_cout+flash_tool_addr_fudge
 	mov	a, #' '
 	lcall	oysterlib_cout+flash_tool_addr_fudge
-	acall	flash_tool_flash_page_from_ram+flash_tool_addr_fudge	; Flash page
+	lcall	flash_tool_flash_page_from_ram+flash_tool_addr_fudge	; Flash page
 	mov	dptr, #str_fail+flash_tool_addr_fudge
 	jc	flash_tool_actual_flash_result
 	mov	dptr, #str_okay+flash_tool_addr_fudge
 flash_tool_actual_flash_result:
-	acall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 
 	mov	a, r1						; If page 0 was written, we need to reset
 	jnz	flash_tool_finish
 	mov	dptr, #str_ft_reseting_device+flash_tool_addr_fudge
-	acall	flash_tool_print_str+flash_tool_addr_fudge
+	lcall	flash_tool_print_str+flash_tool_addr_fudge
 	lcall	oysterlib_newline+flash_tool_addr_fudge
 	ljmp	0x0000						; Perform a reset as the monitor was overwritten
 
@@ -829,7 +829,7 @@ flash_tool_finish:
 ; # Copy of the hex printer (because we're running in RAM)
 ; ##########################################################################
 flash_tool_print_hex:
-	acall	flash_tool_print_hex_digit+flash_tool_addr_fudge
+	lcall	flash_tool_print_hex_digit+flash_tool_addr_fudge
 flash_tool_print_hex_digit:
 	swap	a						; SWAP A will be twice => A unchanged
 	push	acc
@@ -927,7 +927,7 @@ flash_tool_flash_page_from_ram_read_loop:
 	movx	a, @dptr					; Get next byte
 
 	mov	r0, a						; Set data to program
-	acall	flash_program_byte+flash_tool_addr_fudge
+	lcall	flash_program_byte+flash_tool_addr_fudge
 	jc	flash_tool_flash_page_from_ram_finish		; On error, exit
 
 	dec	r2
@@ -976,7 +976,7 @@ flash_send_command_no_setup:
 ; # Resets the flash device back to read operation
 ; ##########################################################################
 flash_device_reset:
-	acall	flash_send_command+flash_tool_addr_fudge
+	lcall	flash_send_command+flash_tool_addr_fudge
 	mov	a,  #flash_command_reset			; Reset device operation
 	movx	@dptr, a
 	ret
@@ -990,7 +990,7 @@ flash_device_reset:
 ; #   B - Device ID
 ; ##########################################################################
 flash_get_deviceid:
-	acall	flash_send_command+flash_tool_addr_fudge
+	lcall	flash_send_command+flash_tool_addr_fudge
 	mov	a,  #flash_command_autoselect			; Device/ID command
 	movx	@dptr, a
 
@@ -1002,7 +1002,7 @@ flash_get_deviceid:
 	movx	a, @dptr
 	push	acc						; Save device id
 
-	acall	flash_device_reset+flash_tool_addr_fudge	; Reset the device back to read operation
+	lcall	flash_device_reset+flash_tool_addr_fudge	; Reset the device back to read operation
 
 	pop	b						; Restore device id
 	pop	acc						; Restore manufacturer id
@@ -1019,10 +1019,10 @@ flash_get_deviceid:
 ; #   Carry - Set on error
 ; ##########################################################################
 flash_erase_page:
-	acall	flash_send_command+flash_tool_addr_fudge
+	lcall	flash_send_command+flash_tool_addr_fudge
 	mov	a, #flash_command_erase				; Setup erase
 	movx	@dptr, a
-	acall	flash_send_command_no_setup+flash_tool_addr_fudge
+	lcall	flash_send_command_no_setup+flash_tool_addr_fudge
 	mov	a, r1						; Get ROM page to write
 	anl	a, #3						; Make sure it's valid
 	mov	mem_page_rdwr, a
@@ -1041,10 +1041,10 @@ flash_erase_page_sector0_loop:
 	sjmp	flash_erase_page_sector0_loop
 flash_erase_page_sector0_loop_finish:
 
-	acall	flash_send_command+flash_tool_addr_fudge
+	lcall	flash_send_command+flash_tool_addr_fudge
 	mov	a, #flash_command_erase				; Setup erase
 	movx	@dptr, a
-	acall	flash_send_command_no_setup+flash_tool_addr_fudge
+	lcall	flash_send_command_no_setup+flash_tool_addr_fudge
 	mov	a, r1						; Get ROM page to write
 	anl	a, #3						; Make sure it's valid
 	mov	mem_page_rdwr, a
@@ -1082,7 +1082,7 @@ flash_erase_page_error:
 ; #   Carry - Set on error
 ; ##########################################################################
 flash_program_byte:
-	acall	flash_send_command+flash_tool_addr_fudge
+	lcall	flash_send_command+flash_tool_addr_fudge
 	mov	a, #flash_command_program			; Program byte
 	movx	@dptr, a
 
