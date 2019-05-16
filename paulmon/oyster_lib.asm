@@ -486,7 +486,7 @@ power_of_2:
 ; # Memory layout:
 ; #	0x0000 - 0x7FFF ROM
 ; #	0x0000 - 0x7FFF RAM
-; #	0x0000 - 0x7FFF RAM card
+; #	0x0000 - 0x7FFFF RAM card
 ; #
 ; # However both RAM (system/card) and ROM are paged, and swapped out depending on:
 ; #	U22 latch - @0x0Cxx + P1.4 - MOVX access
