@@ -722,10 +722,23 @@ flash_tool:
 	cjne	a, #0x80, flash_tool_location_check
 flash_tool_location_check:
 	jnc	flash_tool_actual
-	mov	dptr, #str_ft_err_memloc			; Print error message and exit
+	mov	dptr, #str_ft_copy_rom
 	lcall	pstr
 	lcall	oysterlib_newline
-	ret
+	lcall	flash_tool_copy_rom_to_ram			; Make a working copy of the ROM in RAM
+
+	setb	p1.0						; Select RAM on PSEN in 0x8000 area
+	setb	mem_mode_psen_ram
+	clr	p1.1
+	clr	mem_mode_psen_ram_card
+
+	mov	a, #0x03					; Select page 3 on access to 0x8000 area
+	mov	mem_page_psen, a
+	mov	dph, #psen_page_latch
+	setb	p1.4						; Enable address logic
+	movx	@dptr, a
+	clr	p1.4
+	ljmp	flash_tool_actual+flash_tool_addr_fudge		; Jump to copy in RAM
 
 flash_tool_actual:
 	mov	dptr, #str_ft_device				; Print device ID
@@ -790,7 +803,49 @@ flash_tool_actual_flash_result:
 	lcall	pstr
 	lcall	oysterlib_newline
 
+	mov	a, r1						; If page 0 was written, we need to reset
+	jnz	flash_tool_finish
+	mov	dptr, #str_ft_reseting_device
+	lcall	pstr
+	lcall	oysterlib_newline
+	ljmp	#0x0000						; Perform a reset as the monitor was overwritten
+
 flash_tool_finish:
+	ret
+
+
+; # flash_tool_copy_rom_to_ram
+; #
+; # Make a temporary copy of the system ROM in RAM, so as to be able to
+; # flash system ROM.
+; ##########################################################################
+flash_tool_copy_rom_to_ram:
+	setb	p1.2						; Select RAM on RD|WR access in 0x8000 area
+	setb	mem_mode_rdwr_ram
+	clr	p1.3
+	clr	mem_mode_rdwr_ram_card
+
+	mov	a, #0x03					; Select page 3 on access to 0x8000 area
+	mov	mem_page_rdwr, a
+	mov	dph, #rdwr_page_latch
+	setb	p1.4						; Enable address logic
+	movx	@dptr, a
+	clr	p1.4
+
+	mov	dptr, #0x7fff
+flash_tool_copy_rom_to_ram_loop:
+	clr	a
+	movc	a, @a+dptr					; Read byte of ROM
+	orl	dph, #0x80					; Convert to RAM address
+	movx	@dptr, a					; Copy ROM byte to RAM
+	anl	dph, #0x7f					; Convert back to ROM address
+
+	mov	a, #0xff					; Needed for compare
+	dec	dpl						; Decrement address pointer LSB
+	cjne	a, dpl, flash_tool_copy_rom_to_ram_loop		; Loop on address pointer LSB
+	dec	dph						; Decrement address poiner MSB
+	cjne	a, dph, flash_tool_copy_rom_to_ram_loop		; Loop on address pointer MSB
+
 	ret
 
 
@@ -837,7 +892,7 @@ flash_tool_flash_page_from_ram_finish:
 	ret
 
 
-; # flash_enable_command_register
+; # flash_send_command
 ; #
 ; # Sends the command register select sequence
 ; ##########################################################################
@@ -1013,13 +1068,14 @@ flash_program_byte_error:
 	setb	c
 	ret
 
-str_ft_err_memloc:	.db	"Can't run from ROM.", 0
 str_ft_err_page:	.db	"Incorrect page selected.", 0
 str_ft_confirm:		.db	"Confirm flash write [Y/N]: ", 0
+str_ft_copy_rom:	.db	"Copying system ROM to RAM.", 0
 str_ft_device:		.db	"Device: ", 0
 str_ft_select_page:	.db	"Select Page To Flash: ", 0
 str_ft_erasing_page:	.db	"Erasing Page ", 0
 str_ft_flashing_page:	.db	"Flashing Page ", 0
+str_ft_reseting_device:	.db	"Reseting device.", 0
 
 .org	locat+0xe00
 ; ###############################################################################################################
